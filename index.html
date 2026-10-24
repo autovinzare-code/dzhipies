@@ -1,0 +1,675 @@
+<title>ДЖИПИЭС</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one phone-width app column; dark "road" header with lane dashes, map first, bottom tab bar */
+:root{
+  --bg:#EDF0F4; --surface:#FFFFFF; --ink:#132030; --muted:#5A6879; --line:#D5DBE3;
+  --accent:#F2B300; --accent-ink:#1C1500; --road:#1E2A39; --road-ink:#F3F6F9;
+  --ok:#1D8048; --warn:#B9420E; --soft:#F6F8FA;
+  --sea:#DCE6EF; --land:#F7F8F6; --border:#B9C3CF;
+  --k-seat:#2563C9; --k-parcel:#B9420E; --k-car:#1D8048; --rd-major:#E9A912; --rd-sec:#BFC8D3;
+  --f-display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D131B; --surface:#161F2A; --ink:#E7ECF2; --muted:#93A0B1; --line:#2A3645;
+  --accent:#FFC31F; --accent-ink:#1C1500; --road:#090E14; --road-ink:#E7ECF2;
+  --ok:#3DB872; --warn:#F07B3C; --soft:#1B2531;
+  --sea:#0F1A26; --land:#1F2A37; --border:#3A4859;
+  --k-seat:#6AA2FF; --k-parcel:#F28A4E; --k-car:#45C47D; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D131B; --surface:#161F2A; --ink:#E7ECF2; --muted:#93A0B1; --line:#2A3645;
+  --accent:#FFC31F; --accent-ink:#1C1500; --road:#090E14; --road-ink:#E7ECF2;
+  --ok:#3DB872; --warn:#F07B3C; --soft:#1B2531;
+  --sea:#0F1A26; --land:#1F2A37; --border:#3A4859;
+  --k-seat:#6AA2FF; --k-parcel:#F28A4E; --k-car:#45C47D; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--road)}
+.app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;background:var(--bg)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--road);color:var(--road-ink)}
+header.top .wrap{padding-block:14px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font:700 18px/1 var(--f-display);letter-spacing:.02em}
+.brand b{color:var(--accent)}
+.lane{height:4px;background:repeating-linear-gradient(90deg,var(--accent) 0 18px,transparent 18px 32px)}
+.who{font-size:13px;opacity:.85;text-align:right}
+main{flex:1}
+main .wrap{padding-block:16px 96px;display:flex;flex-direction:column;gap:14px}
+h1{font:700 21px/1.2 var(--f-display);margin:0;text-wrap:balance}
+h2{font:600 16px/1.3 var(--f-body);margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);min-width:0}
+input,select,textarea{font:16px var(--f-body);color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{font:600 15px var(--f-body);border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:8px 12px;font-size:14px;border-radius:10px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:64px;font:500 13px var(--f-body);padding:8px 6px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg button[aria-pressed="true"]{background:var(--road);color:var(--road-ink);border-color:var(--road)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.price{font:700 19px var(--f-display);white-space:nowrap}
+.list{display:flex;flex-direction:column;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--f-body);padding:3px 9px;border-radius:99px;background:var(--soft);border:1px solid var(--line);color:var(--ink);white-space:nowrap}
+.pill.go{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.pill.ok{color:var(--ok);border-color:currentColor;background:transparent}
+.hint{background:var(--soft);border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;font-size:14px}
+.code-row{display:flex;gap:8px}
+.code-row input{text-align:center;font:600 22px var(--f-mono);padding:12px 0}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.kv span:last-child{font-weight:600;text-align:right}
+/* Map */
+.mapbox{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--sea);height:min(56vh,440px);min-height:300px;touch-action:none}
+.mapbox svg{width:100%;height:100%;display:block;cursor:grab}
+.mapbox.picking svg{cursor:crosshair}
+.country{fill:var(--land);stroke:var(--border);stroke-width:.6;vector-effect:non-scaling-stroke}
+.country.md{fill:var(--accent);fill-opacity:.22}
+.road{fill:none;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.road.r0{stroke:var(--rd-major);stroke-width:1.5}
+.road.r1{stroke:var(--rd-sec);stroke-width:1}
+.road.r2{stroke:var(--rd-sec);stroke-width:.7;display:none}
+svg.z2 .road.r2{display:inline}
+.cdot{fill:var(--surface);stroke:var(--ink);stroke-width:1.3;vector-effect:non-scaling-stroke;pointer-events:none}
+.chit{fill:transparent;cursor:pointer}
+.clbl{font-family:var(--f-body);font-weight:500;fill:var(--muted);paint-order:stroke;stroke:var(--land);pointer-events:none}
+.c1,.c2,.c3{display:none}
+svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
+.citysum{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.citysum button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:12px;padding:10px;cursor:pointer;font:inherit;text-align:left}
+.citysum button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.citysum b{font:700 20px var(--f-display)}
+.route{fill:none;stroke-width:2.4;vector-effect:non-scaling-stroke;opacity:.85;cursor:pointer}
+.route.dim{opacity:.18}
+.route.sel{stroke-width:4.5;opacity:1}
+.city-lbl{font:600 11px var(--f-body);fill:var(--ink);paint-order:stroke;stroke:var(--land);stroke-width:3px;pointer-events:none}
+.mapbar{position:absolute;left:8px;right:8px;top:8px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.mapbar>*{pointer-events:auto}
+.mapbar .pill{box-shadow:0 1px 3px rgb(0 0 0 / .12);background:var(--surface)}
+.glpin{display:flex;align-items:center;gap:6px;pointer-events:none}
+.glpin i{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgb(0 0 0 / .35);flex:none}
+.glpin span{font:600 12px var(--f-body);background:var(--surface);color:var(--ink);padding:2px 7px;border-radius:7px;border:1px solid var(--line);white-space:nowrap}
+.mapbar,.zoom{z-index:2}
+.searchrow{display:flex;gap:8px}
+.searchrow input{flex:1;min-width:0}
+.roadinfo{grid-column:1/3;font-size:13px;color:var(--ink);font-weight:600}
+.roadinfo:empty{display:none}
+.zoom{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 18px var(--f-body);cursor:pointer}
+.pickbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:9px 12px;cursor:pointer;font:500 15px var(--f-body);min-width:0}
+.pick small{font-size:12px;color:var(--muted)}
+.pick span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.offer{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
+.offer .route-t{font-weight:600;min-width:0}
+.offer .side{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.offer .meta{font-size:13px;color:var(--muted);min-width:0}
+.offer .caps{grid-column:1/3;display:flex;gap:6px;flex-wrap:wrap}
+.offer .acts{grid-column:1/3;display:flex;gap:8px}
+.offer .acts .btn{flex:1}
+.offer.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.when{font:600 12px var(--f-mono);color:var(--muted)}
+.when.soon{color:var(--warn)}
+/* Chat */
+.chatlog{display:flex;flex-direction:column;gap:8px;min-height:240px}
+.msg{max-width:82%;padding:9px 12px;border-radius:14px;font-size:15px;background:var(--surface);border:1px solid var(--line);align-self:flex-start;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--road);color:var(--road-ink);border-color:var(--road)}
+.msg time{display:block;font:500 11px var(--f-mono);opacity:.6;margin-top:3px}
+.chatform{display:flex;gap:8px;position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));background:var(--bg);padding-block:8px}
+.chatform input{flex:1;min-width:0}
+.thread{display:flex;gap:12px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
+.ava{width:42px;height:42px;border-radius:50%;background:var(--road);color:var(--accent);display:grid;place-items:center;font:700 15px var(--f-display);flex:none}
+.thread .t{flex:1;min-width:0}
+.thread .t p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Sheet */
+.scrim{position:fixed;inset:0;background:rgb(10 15 22 / .5);z-index:30;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px;max-height:88vh;overflow:auto}
+.plan{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.plan button{text-align:left;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:12px;padding:10px;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:2px}
+.plan button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.plan b{font:700 16px var(--f-display)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs .inner{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+nav.tabs button{background:none;border:0;padding:9px 2px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;font:500 12px var(--f-body);color:var(--muted);cursor:pointer;position:relative}
+nav.tabs svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs button[aria-current="page"]{color:var(--ink)}
+nav.tabs button[aria-current="page"] span{box-shadow:inset 0 -2px 0 var(--accent)}
+nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--warn);color:#fff;font:600 11px/17px var(--f-body);padding:0 4px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--road);color:var(--road-ink);padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+.empty{text-align:center;padding:22px 12px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">ДЖИ<b>ПИ</b>ЭС</div>
+      <div class="who" id="who"></div>
+    </div>
+    <div class="lane"></div>
+  </header>
+  <main><div class="wrap" id="view"></div></main>
+  <nav class="tabs" id="tabs" hidden><div class="inner">
+    <button data-tab="map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Карта</span></button>
+    <button data-tab="publish"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Я еду</span></button>
+    <button data-tab="chats"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Чаты</span><b class="badge" id="badge" hidden></b></button>
+    <button data-tab="profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg><span>Профиль</span></button>
+  </div></nav>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="eumap.js"></script>
+<script src="euroads.js"></script>
+<script>
+(function(){
+const store={
+  get(k,d){try{const v=localStorage.getItem("gps2_"+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem("gps2_"+k,JSON.stringify(v))}catch(e){}}
+};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const view=$("#view");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const eur=n=>(Math.round(n*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2})+" €";
+const H=36e5;
+
+/* Города: [широта, долгота, страна] */
+const CITIES={
+ "Кишинёв":[47.01,28.86,"MD"],"Бельцы":[47.76,27.93,"MD"],"Кагул":[45.90,28.19,"MD"],"Унгены":[47.21,27.80,"MD"],"Комрат":[46.30,28.65,"MD"],"Сороки":[48.16,28.30,"MD"],"Оргеев":[47.38,28.82,"MD"],
+ "Берлин":[52.52,13.40,"DE"],"Мюнхен":[48.14,11.58,"DE"],"Франкфурт":[50.11,8.68,"DE"],"Гамбург":[53.55,9.99,"DE"],"Кёльн":[50.94,6.96,"DE"],"Штутгарт":[48.78,9.18,"DE"],"Нюрнберг":[49.45,11.08,"DE"],
+ "Рим":[41.90,12.50,"IT"],"Милан":[45.46,9.19,"IT"],"Болонья":[44.49,11.34,"IT"],"Падуя":[45.41,11.88,"IT"],"Турин":[45.07,7.69,"IT"],"Верона":[45.44,10.99,"IT"],"Неаполь":[40.85,14.27,"IT"],"Венеция":[45.44,12.32,"IT"],
+ "Цюрих":[47.37,8.54,"CH"],"Женева":[46.20,6.14,"CH"],"Базель":[47.56,7.59,"CH"],"Берн":[46.95,7.45,"CH"],
+ "Вена":[48.21,16.37,"AT"],"Прага":[50.08,14.44,"CZ"],"Варшава":[52.23,21.01,"PL"],"Бухарест":[44.43,26.10,"RO"],"Яссы":[47.16,27.59,"RO"],"Будапешт":[47.50,19.04,"HU"],
+ "Париж":[48.86,2.35,"FR"],"Лион":[45.76,4.84,"FR"],"Мадрид":[40.42,-3.70,"ES"],"Барселона":[41.39,2.17,"ES"],"Лиссабон":[38.72,-9.14,"PT"],"Лондон":[51.51,-0.13,"GB"],
+ "Амстердам":[52.37,4.90,"NL"],"Брюссель":[50.85,4.35,"BE"],"Одесса":[46.48,30.72,"UA"],"Стамбул":[41.01,28.98,"TR"],"София":[42.70,23.32,"BG"],"Афины":[37.98,23.73,"GR"]
+};
+const cityNames=Object.keys(CITIES);
+function dist(a,b){const r=Math.PI/180,dLat=(b[0]-a[0])*r,dLon=(b[1]-a[1])*r;const x=Math.sin(dLat/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLon/2)**2;return 6371*2*Math.asin(Math.sqrt(x))}
+const roadKm=(a,b)=>Math.round(dist(a,b)*1.25);
+function nearestCity(lat,lon){let best=null,bd=1e9;for(const n of cityNames){const d=dist([lat,lon],CITIES[n]);if(d<bd){bd=d;best=n}}return{name:best,d:bd}}
+function place(name){const c=CITIES[name];return c?{name,lat:c[0],lon:c[1]}:null}
+
+const KINDS={
+  seat:{t:"Пассажиры",unit:"мест",color:"--k-seat",price:"за место"},
+  parcel:{t:"Посылки",unit:"кг",color:"--k-parcel",price:"за кг"},
+  car:{t:"Авто на трале",unit:"авто",color:"--k-car",price:"за авто"}
+};
+const now=Date.now();
+const R=(id,from,to,inH,driver,vehicle,caps,prices,rating,extra)=>({id,from:place(from),to:place(to),at:Math.round((now+inH*H)/9e5)*9e5,driver,vehicle,caps,prices,rating,note:extra||""});
+const seedRoutes=[
+  R("r1","Кишинёв","Мюнхен",14,"Ион","VW Passat, универсал",{seat:4,parcel:40},{seat:110,parcel:1.5},4.9,"Еду через Яссы, Будапешт, Вену. Могу забрать по Кишинёву."),
+  R("r2","Бельцы","Франкфурт",30,"Василе","Mercedes Sprinter, 8 мест",{seat:5,parcel:250},{seat:120,parcel:1.2},4.8,"Остановки: Унгены, Яссы, Нюрнберг."),
+  R("r3","Милан","Кишинёв",6,"Андрей","Mercedes Sprinter, грузовой",{parcel:300},{parcel:1},4.9,"Забираю посылки по Милану до 16:00. Доставка до двери в Кишинёве и Бельцах."),
+  R("r4","Болонья","Кишинёв",40,"Сергей","Iveco Daily",{seat:3,parcel:200},{seat:130,parcel:1.1},4.7,"Прием посылок в Болонье и Падуе."),
+  R("r5","Рим","Бельцы",70,"Михаил","Ford Transit",{parcel:400},{parcel:1.2},4.6,""),
+  R("r6","Падуя","Кишинёв",20,"Дорин","Renault Master",{seat:2,parcel:150},{seat:120,parcel:1},5.0,"Через Венецию и Верону."),
+  R("r7","Цюрих","Кишинёв",26,"Николай","Трал на 2 машины + Iveco",{car:1,parcel:100},{car:650,parcel:1.5},4.9,"Забираю авто в Цюрихе, Базеле, Берне. Документы и растаможка не входят."),
+  R("r8","Базель","Кишинёв",96,"Евгений","Автовоз на 8 машин",{car:3},{car:550},4.8,"Погрузка в Базеле, Цюрихе и Мюнхене."),
+  R("r9","Франкфурт","Кишинёв",50,"Виктор","Эвакуатор-платформа",{car:1},{car:700},4.7,"Могу забрать машину с аукциона или из салона."),
+  R("r10","Кишинёв","Париж",48,"Александру","Skoda Superb",{seat:3},{seat:140},4.9,""),
+  R("r11","Мюнхен","Кишинёв",9,"Петру","Mercedes Vito",{seat:4,parcel:120},{seat:110,parcel:1.3},4.8,""),
+  R("r12","Кишинёв","Рим",60,"Лилия","Toyota Corolla",{seat:2,parcel:20},{seat:130,parcel:2},5.0,"Не курим в машине."),
+  R("r13","Турин","Кагул",80,"Георге","VW Crafter",{parcel:350},{parcel:1},4.7,""),
+  R("r14","Кишинёв","Берлин",22,"Дмитрий","Opel Vivaro",{seat:6,parcel:80},{seat:120,parcel:1.4},4.6,"")
+];
+
+const PLANS={
+  pay:{t:"Разовый сбор",p:"2 € за бронь",fee:2},
+  sub:{t:"Подписка",p:"4,99 € в месяц",fee:0}
+};
+
+let state={
+  user:store.get("user",null),
+  tab:store.get("tab","map"),
+  routes:store.get("routes",null)||seedRoutes,
+  chats:store.get("chats",[]),
+  bookings:store.get("bookings",[]),
+  plan:store.get("plan","pay"),
+  kind:"all",
+  A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
+  pub:{kind:"seat",A:null,B:null,pick:"A"},
+  auth:{step:"phone",phone:"+373 69 123 456",sent:null},
+  openChat:null
+};
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan)};
+
+function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
+function when(t){
+  const d=new Date(t),hh=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  const day=x=>{const y=new Date(x);y.setHours(0,0,0,0);return y.getTime()};
+  const dd=Math.round((day(t)-day(Date.now()))/864e5);
+  const M=["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
+  const lbl=dd===0?"сегодня":dd===1?"завтра":dd===2?"послезавтра":d.getDate()+" "+M[d.getMonth()];
+  const inH=(t-Date.now())/H;
+  return {txt:lbl+", "+hh, rel:inH<1?"скоро":inH<24?"через "+Math.round(inH)+" ч":"через "+Math.round(inH/24)+" дн.", soon:inH<24};
+}
+function closeSheet(){const s=$(".scrim");if(s)s.remove()}
+function sheet(html,bind){closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;s.onclick=e=>{if(e.target===s)closeSheet()};document.body.appendChild(s);bind&&bind(s);const f=s.querySelector("button,input");f&&f.focus()}
+
+/* ---------- Вход по телефону ---------- */
+function renderAuth(){
+  const a=state.auth;$("#tabs").hidden=true;$("#who").innerHTML="";
+  if(a.step==="phone"){
+    view.innerHTML=`<h1>Вход по номеру телефона</h1>
+      <p class="muted">Попутчики, посылки и перевозка машин по всей Европе. Пароль не нужен, пришлём код в SMS.</p>
+      <form class="card" id="f"><label for="phone">Номер телефона<input id="phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(a.phone)}"></label>
+      <button class="btn" type="submit">Получить код</button>
+      <p class="small muted">Подходит любой номер: Молдова, Румыния, Италия, Германия и другие страны.</p></form>
+      <button class="btn ghost" id="demo" type="button">Войти без SMS (демо)</button>`;
+    $("#demo").onclick=()=>{state.user={name:"Вова",phone:a.phone};save();render();toast("Вы вошли в демо-режиме")};
+    $("#f").onsubmit=e=>{e.preventDefault();const p=$("#phone").value.trim();if(p.replace(/\D/g,"").length<8){toast("Проверьте номер: нужен код страны и номер");return}
+      a.phone=p;a.sent=String(Math.floor(1000+Math.random()*9000));a.step="code";render()};
+  }else if(a.step==="code"){
+    view.innerHTML=`<h1>Введите код из SMS</h1>
+      <p class="muted">Отправили на <span class="mono">${esc(a.phone)}</span>. <button class="btn ghost sm" id="back" type="button">Изменить</button></p>
+      <form class="card" id="f"><div class="hint">Демо-режим: настоящая SMS не приходит. Код <b class="mono">${a.sent}</b> уже подставлен, просто нажмите «Подтвердить».</div>
+      <div class="code-row">${[0,1,2,3].map(i=>`<input id="c${i}" inputmode="numeric" maxlength="1" aria-label="Цифра ${i+1}">`).join("")}</div>
+      <button class="btn" type="submit">Подтвердить</button></form>`;
+    const ins=[0,1,2,3].map(i=>$("#c"+i));
+    ins.forEach((el,i)=>{el.oninput=()=>{el.value=el.value.replace(/\D/g,"");if(el.value&&ins[i+1])ins[i+1].focus()};el.onkeydown=e=>{if(e.key==="Backspace"&&!el.value&&ins[i-1])ins[i-1].focus()}});
+    ins[0].addEventListener("paste",e=>{const d=(e.clipboardData.getData("text")||"").replace(/\D/g,"").slice(0,4);if(d.length){e.preventDefault();d.split("").forEach((c,i)=>ins[i].value=c)}});
+    a.sent.split("").forEach((c,i)=>ins[i].value=c);$("#f button[type=submit]").focus();$("#back").onclick=()=>{a.step="phone";render()};
+    $("#f").onsubmit=e=>{e.preventDefault();if(ins.map(i=>i.value).join("")!==a.sent){toast("Код не совпал. Проверьте цифры");return}a.step="name";render()};
+  }else{
+    view.innerHTML=`<h1>Как вас зовут?</h1><p class="muted">Имя увидят водители и пассажиры в чате.</p>
+      <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" value="Вова" required></label><button class="btn" type="submit">Готово</button></form>`;
+    $("#f").onsubmit=e=>{e.preventDefault();state.user={name:$("#name").value.trim()||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
+  }
+}
+
+/* ---------- Карта ---------- */
+let mapCtx=null;
+function buildMap(box,opts){
+  const W=box.clientWidth,Hh=box.clientHeight;
+  const svg=d3.select(box).append("svg").attr("viewBox",`0 0 ${W} ${Hh}`).attr("role","img").attr("aria-label","Карта Европы с маршрутами");
+  const proj=d3.geoMercator().fitExtent([[10,10],[W-10,Hh-10]],{type:"MultiPoint",coordinates:opts.fit||[[-2,38],[31,54]]});
+  const path=d3.geoPath(proj);
+  const g=svg.append("g");
+  const feats=window.EU_MAP.map(c=>({type:"Feature",properties:{n:c.n},geometry:{type:"MultiPolygon",coordinates:c.c}}));
+  g.append("g").selectAll("path").data(feats).join("path").attr("class",d=>"country"+(d.properties.n==="Moldova"?" md":"")).attr("d",path);
+  if(window.EU_ROADS){
+    const ds=["","",""];
+    for(const r of window.EU_ROADS){let x=r[1],y=r[2],p=proj([x/100,y/100]),d="M"+p[0].toFixed(1)+","+p[1].toFixed(1);
+      for(let i=3;i<r.length;i+=2){x+=r[i];y+=r[i+1];p=proj([x/100,y/100]);d+="L"+p[0].toFixed(1)+","+p[1].toFixed(1)}ds[r[0]]+=d}
+    [2,1,0].forEach(c=>g.append("path").attr("class","road r"+c).attr("d",ds[c]));
+  }
+  const lr=g.append("g"), lc=g.append("g");
+  (window.EU_PLACES||[]).forEach(([n,lat,lon,rk])=>{const [x,y]=proj([lon,lat]),cl="c"+rk;
+    lc.append("circle").attr("class","cdot scl "+cl).attr("data-r",rk===0?3.5:2.8).attr("r",rk===0?3.5:2.8).attr("cx",x).attr("cy",y);
+    lc.append("text").attr("class","clbl "+cl).attr("data-x",x).attr("data-y",y).attr("data-dx",5).attr("data-dy",3.5).attr("data-fs",rk===0?11:10).attr("x",x+5).attr("y",y+3.5).style("font-size",(rk===0?11:10)+"px").style("stroke-width","2.5px").text(n);
+    lc.append("circle").attr("class","chit scl "+cl).attr("data-r",11).attr("r",11).attr("cx",x).attr("cy",y)
+      .on("click",e=>{e.stopPropagation();opts.onCity&&opts.onCity({name:n,lat,lon})});
+  });
+  const lp=g.append("g"), ll=g.append("g");
+  let k=1;
+  const zoom=d3.zoom().scaleExtent([1,12]).translateExtent([[-W*.5,-Hh*.5],[W*1.5,Hh*1.5]]).on("zoom",e=>{g.attr("transform",e.transform);k=e.transform.k;g.selectAll(".scl").attr("r",function(){return +this.dataset.r/k});
+    g.selectAll("text[data-x]").each(function(){const d=this.dataset;this.style.fontSize=(+(d.fs||11))/k+"px";this.style.strokeWidth=(d.fs?2.5:3)/k+"px";this.setAttribute("x",+d.x+(+(d.dx||10))/k);this.setAttribute("y",+d.y+(+(d.dy||-8))/k)});
+    svg.classed("z1",k>=1.7).classed("z2",k>=3).classed("z3",k>=5)});
+  svg.call(zoom).on("dblclick.zoom",null);
+  svg.on("click",e=>{if(e.defaultPrevented)return;const [x,y]=d3.zoomTransform(svg.node()).invert(d3.pointer(e));const ll_=proj.invert([x,y]);opts.onPick&&opts.onPick(ll_[1],ll_[0])});
+  const xy=p=>proj([p.lon,p.lat]);
+  return {svg,g,lr,lp,ll,xy,zoom,get k(){return k},zoomBy:f=>svg.transition().duration(250).call(zoom.scaleBy,f),
+    focus(points){if(!points.length)return;const pts=points.map(xy);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+      const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+      const s=Math.min(8,0.6/Math.max((x1-x0)/W,(y1-y0)/Hh,0.08));
+      svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity.translate(W/2,Hh/2).scale(s).translate(-(x0+x1)/2-(x1-x0)*0.06,-(y0+y1)/2))}};
+}
+function arcPath(m,a,b){const p=m.xy(a),q=m.xy(b);const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,dx=q[0]-p[0],dy=q[1]-p[1];const c=[mx-dy*.18,my+dx*.18];return `M${p[0]},${p[1]}Q${c[0]},${c[1]} ${q[0]},${q[1]}`}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function mainKind(r){return r.caps.car?"car":r.caps.seat?"seat":"parcel"}
+function drawPin(m,p,label,fill){
+  m.lp.append("circle").attr("class","scl").attr("data-r",8).attr("r",8/m.k).attr("cx",m.xy(p)[0]).attr("cy",m.xy(p)[1]).attr("fill",fill).attr("stroke",css("--surface")).attr("stroke-width",2).attr("vector-effect","non-scaling-stroke");
+  const [x,y]=m.xy(p);m.ll.append("text").attr("class","city-lbl").attr("data-x",x).attr("data-y",y).attr("x",x+10/m.k).attr("y",y-8/m.k).style("font-size",11/m.k+"px").style("stroke-width",3/m.k+"px").text(label);
+}
+
+/* Подробная карта: OpenStreetMap через MapLibre и OpenFreeMap. Включается, если сервисы доступны; иначе встроенная схема */
+const GL={on:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1"};
+let curGL=null;
+function probeRealMap(){
+  const ctl=new AbortController();setTimeout(()=>ctl.abort(),5000);
+  fetch(GL.style,{signal:ctl.signal}).then(r=>{if(!r.ok)throw 0;
+    const l=document.createElement("link");l.rel="stylesheet";l.href=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.css`;document.head.appendChild(l);
+    const sc=document.createElement("script");sc.src=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.js`;
+    sc.onload=()=>{if(!window.maplibregl)return;GL.on=true;if(state.user&&(state.tab==="map"||state.tab==="publish"))render()};
+    document.head.appendChild(sc);
+  }).catch(()=>{});
+}
+function arcCoords(a,b){const n=40,dx=b.lon-a.lon,dy=b.lat-a.lat,c=[(a.lon+b.lon)/2+dy*.18,(a.lat+b.lat)/2-dx*.18],out=[];
+  for(let i=0;i<=n;i++){const t=i/n,u=1-t;out.push([u*u*a.lon+2*u*t*c[0]+t*t*b.lon,u*u*a.lat+2*u*t*c[1]+t*t*b.lat])}return out}
+function glMap(box,opts){
+  if(curGL){curGL.remove();curGL=null}
+  const el=document.createElement("div");el.style.cssText="position:absolute;inset:0";box.prepend(el);
+  const map=new maplibregl.Map({container:el,style:GL.style,center:[17,47],zoom:3.2,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false});
+  map.touchZoomRotate.disableRotation();curGL=map;
+  let loaded=false,items=[];const q=[];const ready=f=>loaded?f():q.push(f);
+  map.on("load",()=>{loaded=true;
+    map.addSource("ourcities",{type:"geojson",data:{type:"FeatureCollection",features:(window.EU_PLACES||[]).map(([n,lat,lon,rk])=>({type:"Feature",properties:{name:n,rk},geometry:{type:"Point",coordinates:[lon,lat]}}))}});
+    map.addLayer({id:"ourcities",type:"circle",source:"ourcities",filter:["<=",["get","rk"],["step",["zoom"],0,4,1,5,2,6,3]],paint:{"circle-radius":5,"circle-color":"#ffffff","circle-stroke-color":"#1E2A39","circle-stroke-width":1.5}});
+    q.splice(0).forEach(f=>f())});
+  const fc=fs=>({type:"FeatureCollection",features:fs});
+  const set=(id,data,layers)=>{const src=map.getSource(id);if(src){src.setData(data);return}map.addSource(id,{type:"geojson",data});layers.forEach(l=>map.addLayer({...l,source:id}))};
+  map.on("click",e=>{
+    const box=[[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]];
+    const cf=map.getLayer("ourcities")?map.queryRenderedFeatures(box,{layers:["ourcities"]}):[];
+    if(cf.length&&opts.onCity){const c=cf[0];opts.onCity({name:c.properties.name,lat:c.geometry.coordinates[1],lon:c.geometry.coordinates[0]});return}
+    const ls=["routes","starts"].filter(l=>map.getLayer(l));
+    const f=ls.length&&!opts.picking()?map.queryRenderedFeatures(box,{layers:ls}).filter(x=>x.properties.shown):[];
+    if(f.length){opts.onSelect&&opts.onSelect(f[0].properties.id);return}
+    opts.onPick&&opts.onPick(e.lngLat.lat,e.lngLat.lng);
+  });
+  const api={
+    routes(list){items=list;ready(()=>{
+      set("routes",fc(list.map(x=>({type:"Feature",properties:{id:x.r.id,col:x.col,shown:x.shown,sel:x.r.id===state.sel},geometry:{type:"LineString",coordinates:arcCoords(x.r.from,x.r.to)}}))),
+        [{id:"routes",type:"line",layout:{"line-cap":"round"},paint:{"line-color":["get","col"],"line-width":["case",["get","sel"],5,2.5],"line-opacity":["case",["get","shown"],.9,.15]}}]);
+      set("starts",fc(list.filter(x=>x.shown).map(x=>({type:"Feature",properties:{id:x.r.id,col:x.col,shown:true},geometry:{type:"Point",coordinates:[x.r.from.lon,x.r.from.lat]}}))),
+        [{id:"starts",type:"circle",paint:{"circle-radius":6,"circle-color":["get","col"],"circle-stroke-width":2,"circle-stroke-color":"#ffffff"}}]);
+    })},
+    select(){api.routes(items)},
+    pin(p,label,color){const d=document.createElement("div");d.className="glpin";d.innerHTML=`<i style="background:${color}"></i><span>${esc(label)}</span>`;new maplibregl.Marker({element:d,anchor:"left",offset:[-8,0]}).setLngLat([p.lon,p.lat]).addTo(map)},
+    line(a,b,col){ready(()=>set("draft",{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:arcCoords(a,b)}},[{id:"draft",type:"line",paint:{"line-color":col,"line-width":4,"line-dasharray":[2,1.5]}}]))},
+    road(geo){ready(()=>set("road",geo?{type:"Feature",properties:{},geometry:geo}:fc([]),[{id:"road",type:"line",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":css("--accent"),"line-width":5,"line-opacity":.95}}]))},
+    focus(points){ready(()=>{const b=new maplibregl.LngLatBounds();points.forEach(p=>b.extend([p.lon,p.lat]));map.fitBounds(b,{padding:{top:60,bottom:40,left:50,right:110},maxZoom:9,duration:500})})},
+    zoomBy(f){map.easeTo({zoom:map.getZoom()+Math.log2(f),duration:250})}
+  };
+  return api;
+}
+function svgMap(box,opts){
+  const m=buildMap(box,opts);
+  return {
+    routes(list){list.forEach(x=>{
+      m.lr.append("path").attr("class","route"+(x.shown?"":" dim")+(state.sel===x.r.id?" sel":"")).attr("data-id",x.r.id).attr("d",arcPath(m,x.r.from,x.r.to)).attr("stroke",x.col)
+        .on("click",e=>{e.stopPropagation();if(x.shown)opts.onSelect&&opts.onSelect(x.r.id)});
+      if(x.shown)m.lp.append("circle").attr("class","scl").attr("data-r",5).attr("r",5).attr("cx",m.xy(x.r.from)[0]).attr("cy",m.xy(x.r.from)[1]).attr("fill",x.col).attr("stroke",css("--surface")).attr("stroke-width",1.5).attr("vector-effect","non-scaling-stroke").style("cursor","pointer")
+        .on("click",e=>{e.stopPropagation();opts.onSelect&&opts.onSelect(x.r.id)});
+    })},
+    select(id){m.lr.selectAll("path").classed("sel",function(){return this.dataset.id===id});m.lr.selectAll("path").filter(function(){return this.dataset.id===id}).raise()},
+    pin(p,label,color){drawPin(m,p,label,color)},
+    line(a,b,col){m.lr.append("path").attr("class","route sel").attr("d",arcPath(m,a,b)).attr("stroke",col)},
+    road(){},focus:m.focus,zoomBy:m.zoomBy
+  };
+}
+const makeMap=(box,opts)=>GL.on?glMap(box,opts):svgMap(box,opts);
+const mapNote=()=>GL.on?"Карта © OpenStreetMap, OpenFreeMap. Маршрут по дорогам считает OSRM.":"Карта дорог Европы: трассы, шоссе и основные дороги (Natural Earth). Приближайте, чтобы увидеть больше дорог и городов. Полная карта всех улиц OpenStreetMap работает в версии на сайте.";
+
+/* Поиск мест и маршрутов по дорогам */
+const roadCache={};
+async function roadRoute(r){
+  if(roadCache[r.id])return roadCache[r.id];
+  const j=await (await fetch(`https://router.project-osrm.org/route/v1/driving/${r.from.lon},${r.from.lat};${r.to.lon},${r.to.lat}?overview=simplified&geometries=geojson`)).json();
+  if(!j.routes||!j.routes[0])throw new Error("no route");
+  return roadCache[r.id]={geo:j.routes[0].geometry,km:Math.round(j.routes[0].distance/1000),h:j.routes[0].duration/3600};
+}
+async function revGeo(lat,lon){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ru`)).json();
+  const a=j.address||{},n=a.city||a.town||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}}
+function setPlace(obj,p,rer){const k=obj.pick||"A";obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
+function setPoint(obj,lat,lon,rer){
+  const n=nearestCity(lat,lon),snap=GL.on?25:120,k=obj.pick;
+  const p=n.d<snap?place(n.name):{name:"Точка у "+n.name,lat,lon};
+  setPlace(obj,p,rer);
+  if(GL.on&&n.d>=snap)revGeo(lat,lon).then(nm=>{if(nm&&obj[k]===p){p.name=nm;rer()}});
+}
+function searchForm(obj){return obj.pick?`<form class="searchrow" id="sq"><input id="q" list="cities" autocomplete="off" placeholder="${obj.pick==="A"?"Откуда: город или адрес":"Куда: город или адрес"}" aria-label="Поиск места"><button class="btn sm" type="submit">Найти</button></form>`:""}
+function bindSearch(obj,rer){const f=$("#sq");if(!f)return;f.onsubmit=async e=>{e.preventDefault();const v=$("#q").value.trim();if(!v)return;
+  const c=cityNames.find(n=>n.toLowerCase()===v.toLowerCase());if(c)return setPlace(obj,place(c),rer);
+  if(GL.on){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
+    if(j[0])return setPlace(obj,{name:j[0].display_name.split(",").slice(0,2).join(",").trim(),lat:+j[0].lat,lon:+j[0].lon},rer)}catch(e){}}
+  toast("Не нашли такое место. Отметьте точку на карте")}}
+
+function matches(r){
+  if(state.kind!=="all"&&!(r.caps[state.kind]>0))return false;
+  if(state.A&&dist([state.A.lat,state.A.lon],[r.from.lat,r.from.lon])>300)return false;
+  if(state.B&&dist([state.B.lat,state.B.lon],[r.to.lat,r.to.lon])>300)return false;
+  return r.at>Date.now()-H;
+}
+function renderMap(){
+  const kinds=[["all","Все",null],...Object.entries(KINDS).map(([k,v])=>[k,v.t,v.color])];
+  view.innerHTML=`
+    <div class="pickbar">
+      <button class="pick" id="pA" aria-pressed="${state.pick==="A"}"><small>Откуда</small><span>${state.A?esc(state.A.name):"Любой город"}</span></button>
+      <button class="pick" id="pB" aria-pressed="${state.pick==="B"}"><small>Куда</small><span>${state.B?esc(state.B.name):"Любой город"}</span></button>
+    </div>
+    <div class="seg" id="kinds">${kinds.map(([k,t,c])=>`<button type="button" data-k="${k}" aria-pressed="${state.kind===k}">${c?`<i class="dot" style="background:var(${c})"></i>`:""}${t}</button>`).join("")}</div>
+    ${searchForm(state)}
+    <div class="mapbox ${state.pick?"picking":""}" id="mb">
+      <div class="mapbar"><span class="pill" id="maphint"></span></div>
+      <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div>
+    </div>
+    <p class="small muted">${mapNote()}</p>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 id="cnt"></h2><button class="btn ghost sm" id="reset" type="button">Сбросить</button></div>
+    <div class="list" id="offers"></div>`;
+  const mb=$("#mb");
+  const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onSelect:id=>selectRoute(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
+  mapCtx=m;
+  const list=state.routes.filter(matches).sort((a,b)=>a.at-b.at);
+  const shown=new Set(list.map(r=>r.id));
+  m.routes(state.routes.filter(r=>r.at>Date.now()-H).map(r=>({r,col:css(KINDS[mainKind(r)].color),shown:shown.has(r.id)})));
+  if(state.A)m.pin(state.A,"А · "+state.A.name,css("--ink"));
+  if(state.B)m.pin(state.B,"Б · "+state.B.name,css("--warn"));
+  $("#maphint").textContent=state.pick==="A"?"Нажмите на карту: откуда едете или отправляете":state.pick==="B"?"Нажмите на карту: куда":"Нажмите на город, маршрут или точку отправления";
+  $("#cnt").textContent=list.length?`Ближайшие отправления: ${list.length}`:"Нет подходящих отправлений";
+  $("#offers").innerHTML=list.length?list.map(offerCard).join(""):`<div class="card empty">По этому направлению пока никто не едет. Попробуйте другой город рядом или включите «Все» типы.</div>`;
+  const focusPts=[state.A,state.B].filter(Boolean);
+  if(focusPts.length===2)m.focus(focusPts);
+  bindOffers();bindSearch(state,renderMap);
+  $("#pA").onclick=()=>{state.pick=state.pick==="A"?null:"A";renderMap()};
+  $("#pB").onclick=()=>{state.pick=state.pick==="B"?null:"B";renderMap()};
+  $$("#kinds button").forEach(b=>b.onclick=()=>{state.kind=b.dataset.k;state.sel=null;renderMap()});
+  $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
+  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.sel=null;state.pick=null;renderMap()};
+}
+function selectRoute(id){
+  state.sel=id;mapCtx.select(id);
+  $$(".offer").forEach(o=>o.classList.toggle("sel",o.dataset.id===id));
+  const el=$(`.offer[data-id="${id}"]`);el&&el.scrollIntoView({behavior:"smooth",block:"center"});
+  if(!GL.on)return;
+  const r=state.routes.find(x=>x.id===id),info=()=>$(`.offer[data-id="${id}"] .roadinfo`);
+  if(info())info().textContent="Строим маршрут по дорогам…";
+  roadRoute(r).then(x=>{if(state.sel!==id)return;mapCtx.road(x.geo);if(info())info().textContent=`По дорогам: ${x.km} км, в пути ≈${Math.round(x.h)} ч`})
+    .catch(()=>{if(info())info().textContent="Маршрут по дорогам сейчас не построить, попробуйте позже"});
+}
+function citySheet(c,side){
+  const near=p=>dist([c.lat,c.lon],[p.lat,p.lon])<60,live=r=>r.at>Date.now()-H;
+  const out=state.routes.filter(r=>live(r)&&near(r.from)).sort((a,b)=>a.at-b.at);
+  const inn=state.routes.filter(r=>live(r)&&near(r.to)).sort((a,b)=>a.at-b.at);
+  side=side||(out.length||!inn.length?"out":"in");
+  const list=side==="out"?out:inn;
+  sheet(`<h2>${esc(c.name)}</h2>
+    <div class="citysum"><button type="button" data-s="out" aria-pressed="${side==="out"}"><span class="small muted">Выезжают отсюда</span><b>${out.length}</b></button>
+      <button type="button" data-s="in" aria-pressed="${side==="in"}"><span class="small muted">Едут сюда</span><b>${inn.length}</b></button></div>
+    <div class="list">${list.length?list.map(offerCard).join(""):`<p class="small muted">${side==="out"?"Отсюда пока никто не выезжает.":"Сюда пока никто не едет."} Попробуйте соседний город или опубликуйте свой маршрут.</p>`}</div>
+    <div class="row"><button class="btn ghost sm" type="button" id="csA">Искать отсюда</button><button class="btn ghost sm" type="button" id="csB">Искать сюда</button></div>
+    <button class="btn ghost" type="button" id="csX">Закрыть</button>`,s=>{
+    s.querySelectorAll(".citysum button").forEach(b=>b.onclick=()=>citySheet(c,b.dataset.s));
+    bindOffers();s.querySelectorAll(".offer").forEach(o=>o.onclick=null);
+    const pt={name:c.name,lat:c.lat,lon:c.lon};
+    s.querySelector("#csA").onclick=()=>{closeSheet();state.A=pt;state.pick=null;state.sel=null;state.tab="map";render()};
+    s.querySelector("#csB").onclick=()=>{closeSheet();state.B=pt;state.pick=null;state.sel=null;state.tab="map";render()};
+    s.querySelector("#csX").onclick=closeSheet;
+  });
+}
+function capPills(r){return Object.entries(r.caps).filter(([,v])=>v>0).map(([k,v])=>`<span class="pill"><i class="dot" style="background:var(${KINDS[k].color})"></i>${KINDS[k].t}: ${v} ${KINDS[k].unit} · ${eur(r.prices[k])} ${KINDS[k].price}</span>`).join("")}
+function offerCard(r){
+  const w=when(r.at);const mine=r.mine;
+  return `<div class="card offer${state.sel===r.id?" sel":""}" data-id="${r.id}">
+    <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
+    <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
+    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${esc(r.driver)} ★${r.rating.toFixed(1)} · ${esc(r.vehicle)}${r.note?`<br>${esc(r.note)}`:""}</div>
+    <div class="caps">${capPills(r)}</div>
+    <div class="roadinfo"></div>
+    <div class="acts">${mine?`<span class="pill ok">Ваш маршрут, ждите сообщений</span>`:`<button class="btn ghost sm" data-chat="${r.id}">Написать</button><button class="btn sm" data-book="${r.id}">Забронировать</button>`}</div>
+  </div>`;
+}
+function bindOffers(){
+  $$("[data-chat]").forEach(b=>b.onclick=e=>{e.stopPropagation();openChatFor(b.dataset.chat)});
+  $$("[data-book]").forEach(b=>b.onclick=e=>{e.stopPropagation();bookSheet(b.dataset.book)});
+  $$(".offer").forEach(o=>o.onclick=()=>selectRoute(o.dataset.id));
+}
+
+/* ---------- Бронирование и оплата ---------- */
+function bookSheet(id){
+  const r=state.routes.find(x=>x.id===id);
+  const ks=Object.keys(r.caps).filter(k=>r.caps[k]>0);
+  let k=state.kind!=="all"&&r.caps[state.kind]?state.kind:ks[0],qty=k==="parcel"?5:1;
+  const draw=s=>{
+    const cost=r.prices[k]*qty,fee=PLANS[state.plan].fee;
+    s.querySelector(".sheet").innerHTML=`
+      <h2>${esc(r.from.name)} → ${esc(r.to.name)}</h2>
+      <p class="small muted">${when(r.at).txt} · ${esc(r.driver)}, ${esc(r.vehicle)}</p>
+      <div class="seg" id="bk">${ks.map(x=>`<button type="button" data-k="${x}" aria-pressed="${x===k}"><i class="dot" style="background:var(${KINDS[x].color})"></i>${KINDS[x].t}</button>`).join("")}</div>
+      <label for="qty">${k==="seat"?"Сколько мест":k==="parcel"?"Вес посылки, кг":"Сколько машин"}<input id="qty" type="number" min="1" max="${r.caps[k]}" step="1" value="${Math.min(qty,r.caps[k])}"></label>
+      ${k==="car"?`<label for="carinfo">Какая машина<input id="carinfo" value="Audi A4, 2019, на ходу"></label>`:""}
+      <div class="kv"><span class="muted">Водителю, при встрече или онлайн</span><span>${eur(cost)}</span></div>
+      <div class="kv"><span class="muted">Сервисный сбор (${PLANS[state.plan].t.toLowerCase()})</span><span>${fee?eur(fee):"включён в подписку"}</span></div>
+      <p class="small muted">Сбор оплачивается сейчас и подтверждает бронь. Деньги водителю защищены: он получит их после поездки.</p>
+      <button class="btn" id="pay" type="button">Оплатить ${fee?eur(fee):""} и забронировать</button>
+      <button class="btn ghost" id="cl" type="button">Отмена</button>`;
+    s.querySelectorAll("#bk button").forEach(b=>b.onclick=()=>{k=b.dataset.k;qty=k==="parcel"?5:1;draw(s)});
+    s.querySelector("#qty").oninput=e=>{qty=Math.max(1,Math.min(r.caps[k],+e.target.value||1));const c=r.prices[k]*qty;s.querySelector(".kv span:last-child").textContent=eur(c)};
+    s.querySelector("#cl").onclick=closeSheet;
+    s.querySelector("#pay").onclick=()=>{
+      qty=Math.max(1,Math.min(r.caps[k],+s.querySelector("#qty").value||1));
+      r.caps[k]-=qty;
+      state.bookings.unshift({id:"B-"+Math.floor(1e4+Math.random()*9e4),route:r.id,title:`${r.from.name} → ${r.to.name}`,kind:k,qty,cost:r.prices[k]*qty,fee,at:r.at,driver:r.driver});
+      const c=chatFor(r);c.msgs.push({me:false,text:`Бронь подтверждена: ${KINDS[k].t.toLowerCase()}, ${qty} ${KINDS[k].unit}. Напишите, где удобно встретиться.`,t:Date.now()});c.unread=(c.unread||0)+1;
+      save();closeSheet();toast("Забронировано. Водитель написал вам в чат");updateBadge();if(state.tab==="map")renderMap();
+    };
+  };
+  sheet("",draw);
+}
+
+/* ---------- Чаты ---------- */
+function chatFor(r){let c=state.chats.find(x=>x.route===r.id);if(!c){c={id:"c"+Date.now(),route:r.id,with:r.driver,title:`${r.from.name} → ${r.to.name}`,msgs:[],unread:0};state.chats.unshift(c)}return c}
+function openChatFor(id){const r=state.routes.find(x=>x.id===id);const c=chatFor(r);
+  if(!c.msgs.length){const k=state.kind!=="all"?state.kind:mainKind(r);
+    c.draft=k==="parcel"?`Здравствуйте! Хочу передать посылку из ${state.A&&state.A.name.indexOf("Точка")<0?state.A.name:r.from.name} в ${r.to.name}. Примерно 5 кг. Когда и где можно отдать?`
+      :k==="car"?`Здравствуйте! Нужно перевезти машину из ${r.from.name} в ${r.to.name}. Есть место на трале?`
+      :`Здравствуйте! Есть свободное место до ${r.to.name}? Откуда забираете?`}
+  save();state.openChat=c.id;state.tab="chats";render()}
+const REPLIES={
+  parcel:["Добрый день! Да, беру. Привезите сегодня до 16:00, адрес скину. Оплата 1 € за кг, можно при получении.","Посылку заберу. Подпишите имя и телефон получателя на коробке."],
+  car:["Здравствуйте! Одно место на трале есть. Машина на ходу? Пришлите фото и адрес погрузки.","Погрузка утром в день выезда. Документы на машину передайте мне в руки."],
+  seat:["Привет! Место есть. Забираю с центральной автостанции или по адресу за 5 €.","Багаж до 20 кг входит в цену. Напишите номер, я добавлю вас в список."]
+};
+function renderChats(){
+  if(state.openChat){const c=state.chats.find(x=>x.id===state.openChat);if(c)return renderChat(c);state.openChat=null}
+  view.innerHTML=`<h1>Чаты</h1>${state.chats.length?`<div class="list">${state.chats.map(c=>{const last=c.msgs[c.msgs.length-1];
+    return `<button class="card thread" data-c="${c.id}"><span class="ava">${esc(c.with[0])}</span><span class="t"><b>${esc(c.with)}</b> <span class="small muted">· ${esc(c.title)}</span><p class="small muted">${last?esc((last.me?"Вы: ":"")+last.text):"Новый чат"}</p></span>${c.unread?`<span class="pill go">${c.unread}</span>`:""}</button>`}).join("")}</div>`
+    :`<div class="card empty">Здесь будут переписки с водителями и перевозчиками. Найдите маршрут на карте и нажмите «Написать».</div>`}`;
+  $$("[data-c]").forEach(b=>b.onclick=()=>{state.openChat=b.dataset.c;renderChats()});
+}
+function renderChat(c){
+  c.unread=0;save();updateBadge();
+  const r=state.routes.find(x=>x.id===c.route);
+  const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  view.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><button class="btn ghost sm" id="bk" type="button">← Чаты</button><span class="ava">${esc(c.with[0])}</span><div style="min-width:0"><b>${esc(c.with)}</b><p class="small muted">${esc(c.title)}${r?" · "+when(r.at).txt:""}</p></div></div>
+    <div class="chatlog" id="log">${c.msgs.length?c.msgs.map(m=>`<div class="msg ${m.me?"me":""}">${esc(m.text)}<time>${tm(m.t)}</time></div>`).join(""):`<p class="small muted">Напишите водителю: что везёте, откуда забрать, когда удобно. Номер телефона покажем после брони.</p>`}</div>
+    ${r&&!r.mine?`<button class="btn ghost sm" id="bkr" type="button" style="align-self:flex-start">Забронировать в этом маршруте</button>`:""}
+    <form class="chatform" id="cf"><input id="ci" autocomplete="off" placeholder="Сообщение" value="${esc(c.draft||"")}"><button class="btn" type="submit">Отправить</button></form>`;
+  c.draft="";
+  $("#bk").onclick=()=>{state.openChat=null;renderChats()};
+  if($("#bkr"))$("#bkr").onclick=()=>bookSheet(r.id);
+  $("#cf").onsubmit=e=>{e.preventDefault();const v=$("#ci").value.trim();if(!v)return;c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
+    const k=r?mainKind(r):"seat";const pool=/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
+    const n=c.msgs.filter(m=>!m.me).length;
+    setTimeout(()=>{c.msgs.push({me:false,text:pool[n%pool.length],t:Date.now()});if(state.openChat===c.id&&state.tab==="chats")renderChat(c);else{c.unread=(c.unread||0)+1;updateBadge()}save()},1400)};
+  window.scrollTo(0,document.body.scrollHeight);
+}
+function updateBadge(){const n=state.chats.reduce((s,c)=>s+(c.unread||0),0);const b=$("#badge");b.hidden=!n;b.textContent=n}
+
+/* ---------- Я еду: публикация ---------- */
+function renderPublish(){
+  const p=state.pub;
+  view.innerHTML=`<h1>Я еду, могу взять</h1>
+    <p class="muted">Отметьте на карте, откуда выезжаете и куда едете. Пассажиры и отправители увидят маршрут и напишут вам.</p>
+    <div class="pickbar">
+      <button class="pick" id="qA" aria-pressed="${p.pick==="A"}"><small>Откуда</small><span>${p.A?esc(p.A.name):"Нажмите на карту"}</span></button>
+      <button class="pick" id="qB" aria-pressed="${p.pick==="B"}"><small>Куда</small><span>${p.B?esc(p.B.name):"Нажмите на карту"}</span></button>
+    </div>
+    ${searchForm(p)}
+    <div class="mapbox picking" id="pm"><div class="mapbar"><span class="pill">${p.pick==="A"?"Нажмите точку отправления":p.pick==="B"?"Нажмите точку прибытия":"Маршрут отмечен"}</span></div>
+      <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div></div>
+    <form class="card" id="pf">
+      <div class="row"><label for="pd">Дата<input id="pd" type="date" required></label><label for="pt">Время<input id="pt" type="time" value="06:00" required></label></div>
+      <label for="pv">Машина<input id="pv" value="Mercedes Vito, 8 мест" required></label>
+      <p class="small muted">Что можете взять (оставьте 0, если не берёте)</p>
+      <div class="row"><label for="cs">Свободных мест<input id="cs" type="number" min="0" max="20" value="4"></label><label for="ps">Цена за место, €<input id="ps" type="number" min="0" value="120"></label></div>
+      <div class="row"><label for="cp">Посылки, до кг<input id="cp" type="number" min="0" value="100"></label><label for="pp">Цена за кг, €<input id="pp" type="number" min="0" step="0.1" value="1.2"></label></div>
+      <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" min="0" max="10" value="0"></label><label for="pc">Цена за авто, €<input id="pc" type="number" min="0" value="600"></label></div>
+      <label for="pn">Комментарий<input id="pn" placeholder="Например: остановки в Яссах и Вене"></label>
+      <div class="kv"><span class="muted">Размещение маршрута</span><span>бесплатно</span></div>
+      <div class="kv"><span class="muted">Комиссия с брони</span><span>5 % или подписка водителя 9,99 €/мес</span></div>
+      <button class="btn" type="submit">Опубликовать маршрут</button>
+    </form>`;
+  const d=new Date(Date.now()+864e5);$("#pd").value=d.toISOString().slice(0,10);
+  const m=makeMap($("#pm"),{picking:()=>!!p.pick,onCity:c=>{if(p.pick)setPlace(p,c,renderPublish);else toast("Нажмите «Откуда» или «Куда», чтобы поменять точку")},onPick:(lat,lon)=>{if(p.pick)setPoint(p,lat,lon,renderPublish)}});
+  if(p.A)m.pin(p.A,"А · "+p.A.name,css("--ink"));
+  if(p.B)m.pin(p.B,"Б · "+p.B.name,css("--warn"));
+  if(p.A&&p.B){m.line(p.A,p.B,css("--accent"));m.focus([p.A,p.B])}
+  bindSearch(p,renderPublish);
+  $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
+  $("#qA").onclick=()=>{p.pick="A";renderPublish()};$("#qB").onclick=()=>{p.pick="B";renderPublish()};
+  $("#pf").onsubmit=e=>{e.preventDefault();
+    if(!p.A||!p.B){toast("Отметьте на карте обе точки: откуда и куда");return}
+    const caps={},prices={};[["seat","cs","ps"],["parcel","cp","pp"],["car","cc","pc"]].forEach(([k,c,pr])=>{const v=+$("#"+c).value||0;if(v>0){caps[k]=v;prices[k]=+$("#"+pr).value||0}});
+    if(!Object.keys(caps).length){toast("Укажите, что можете взять: места, посылки или авто");return}
+    const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
+    const r={id:"m"+Date.now(),from:p.A,to:p.B,at,driver:state.user.name,vehicle:$("#pv").value,caps,prices,rating:5,note:$("#pn").value,mine:true};
+    state.routes.push(r);save();
+    state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A"};
+    toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
+  };
+}
+
+/* ---------- Профиль и тарифы ---------- */
+function renderProfile(){
+  const bs=state.bookings;
+  view.innerHTML=`<h1>${esc(state.user.name)}</h1>
+    <p class="muted mono">${esc(state.user.phone)}</p>
+    <div class="card"><h2>Как платить за сервис</h2>
+      <div class="plan" id="plans">${Object.entries(PLANS).map(([k,v])=>`<button type="button" data-p="${k}" aria-pressed="${state.plan===k}"><span class="small muted">${v.t}</span><b>${v.p}</b><span class="small muted">${k==="pay"?"Платите только когда бронируете":"Безлимит броней и чатов"}</span></button>`).join("")}</div>
+      <p class="small muted">Водители размещают маршруты бесплатно и платят 5 % с брони или подписку 9,99 € в месяц. Цены демонстрационные, их можно поменять.</p>
+    </div>
+    <div class="card"><h2>Мои брони</h2>
+      ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br><span class="pill ok">Подтверждено</span></span></div>`).join("")
+        :`<p class="small muted">Пока нет броней. Найдите маршрут на карте и нажмите «Забронировать».</p>`}
+    </div>
+    <div class="card"><h2>Мои маршруты</h2>
+      ${state.routes.filter(r=>r.mine).map(r=>`<div class="kv"><span>${esc(r.from.name)} → ${esc(r.to.name)}<br><span class="small muted">${when(r.at).txt}</span></span><span class="small">${Object.entries(r.caps).map(([k,v])=>v+" "+KINDS[k].unit).join(", ")}</span></div>`).join("")||`<p class="small muted">Едете сами? Опубликуйте маршрут во вкладке «Я еду».</p>`}
+    </div>
+    <button class="btn ghost" id="out" type="button">Выйти</button>
+    <button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`;
+  $$("#plans button").forEach(b=>b.onclick=()=>{state.plan=b.dataset.p;save();renderProfile();toast(state.plan==="sub"?"Подписка оформлена (демо)":"Выбран разовый сбор")});
+  $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
+  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
+}
+
+/* ---------- Каркас ---------- */
+function render(){
+  closeSheet();
+  if(curGL&&state.tab!=="map"&&state.tab!=="publish"){curGL.remove();curGL=null}
+  if(!state.user)return renderAuth();
+  if(!window.d3||!window.EU_MAP){view.innerHTML=`<div class="card empty">Не удалось загрузить карту. Проверьте интернет и обновите страницу.</div>`;return}
+  $("#tabs").hidden=false;
+  $("#who").innerHTML=`${esc(state.user.name)}<br><span class="mono">${esc(state.user.phone)}</span>`;
+  $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===state.tab?"page":"false"));
+  updateBadge();
+  ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile}[state.tab]||renderMap)();
+  if(state.tab!=="chats")window.scrollTo(0,0);
+}
+$$("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;if(b.dataset.tab==="chats")state.openChat=null;save();render()});
+document.body.insertAdjacentHTML("beforeend",`<datalist id="cities">${cityNames.map(c=>`<option value="${c}">`).join("")}</datalist>`);
+probeRealMap();
+let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
+render();
+})();
+</script>
