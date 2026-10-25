@@ -9,7 +9,7 @@
   --accent:#F2B300; --accent-ink:#1C1500; --road:#1E2A39; --road-ink:#F3F6F9;
   --ok:#1D8048; --warn:#B9420E; --soft:#F6F8FA;
   --sea:#DCE6EF; --land:#F7F8F6; --border:#B9C3CF;
-  --k-seat:#2563C9; --k-parcel:#B9420E; --k-car:#1D8048; --rd-major:#E9A912; --rd-sec:#BFC8D3;
+  --k-seat:#2563C9; --k-parcel:#7C4DCC; --k-car:#8A5A2B; --k-drive:#0E8C8C; --dep:#1E9E50; --arr:#D93A2F; --wait:#F07C00; --rd-major:#E9A912; --rd-sec:#BFC8D3;
   --f-display:"Unbounded","Arial Black",system-ui,sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
@@ -19,13 +19,13 @@
   --accent:#FFC31F; --accent-ink:#1C1500; --road:#090E14; --road-ink:#E7ECF2;
   --ok:#3DB872; --warn:#F07B3C; --soft:#1B2531;
   --sea:#0F1A26; --land:#1F2A37; --border:#3A4859;
-  --k-seat:#6AA2FF; --k-parcel:#F28A4E; --k-car:#45C47D; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}}
+  --k-seat:#6AA2FF; --k-parcel:#A88BF0; --k-car:#C99A6B; --k-drive:#3CC6C6; --dep:#3CC774; --arr:#FF6B5E; --wait:#FF9A2E; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0D131B; --surface:#161F2A; --ink:#E7ECF2; --muted:#93A0B1; --line:#2A3645;
   --accent:#FFC31F; --accent-ink:#1C1500; --road:#090E14; --road-ink:#E7ECF2;
   --ok:#3DB872; --warn:#F07B3C; --soft:#1B2531;
   --sea:#0F1A26; --land:#1F2A37; --border:#3A4859;
-  --k-seat:#6AA2FF; --k-parcel:#F28A4E; --k-car:#45C47D; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}
+  --k-seat:#6AA2FF; --k-parcel:#A88BF0; --k-car:#C99A6B; --k-drive:#3CC6C6; --dep:#3CC774; --arr:#FF6B5E; --wait:#FF9A2E; --rd-major:#A87C12; --rd-sec:#3B4A5C; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body)}
@@ -85,6 +85,34 @@ svg.z2 .road.r2{display:inline}
 .clbl{font-family:var(--f-body);font-weight:500;fill:var(--muted);paint-order:stroke;stroke:var(--land);pointer-events:none}
 .c1,.c2,.c3{display:none}
 svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
+.hub{cursor:pointer}
+.hub text{font:700 10px var(--f-body);fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+@keyframes pulse{0%{transform:scale(1);opacity:.75}100%{transform:scale(2.6);opacity:0}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.45}}
+.wait .ring{fill:var(--wait);transform-box:fill-box;transform-origin:center;animation:pulse 1.4s ease-out infinite}
+.wait .core{fill:var(--wait);animation:blink 1.4s ease-in-out infinite}
+.glwait{width:22px;height:22px;position:relative;cursor:pointer}
+.glwait i,.glwait b{position:absolute;inset:0;border-radius:50%;background:var(--wait)}
+.glwait i{animation:pulse 1.4s ease-out infinite}
+.glwait b{border:2px solid #fff;animation:blink 1.4s ease-in-out infinite;display:grid;place-items:center;color:#fff;font:700 11px var(--f-body)}
+.fab{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:7;width:54px;height:54px;border-radius:50%;border:0;background:var(--road);color:var(--accent);box-shadow:0 4px 14px rgb(0 0 0 / .25);cursor:pointer;display:grid;place-items:center}
+.fab svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.helpbtn{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font:700 15px var(--f-body);cursor:pointer;flex:none}
+.intro .sheet{min-height:min(560px,80vh)}
+.intro-step{display:flex;flex-direction:column;gap:10px;flex:1}
+.intro-step h2{font:700 19px/1.25 var(--f-display)}
+.intro-step p{font-size:16px}
+.intro-art{display:flex;gap:10px;align-items:center;justify-content:center;padding-block:14px;background:var(--soft);border-radius:14px}
+.intro-dots{display:flex;gap:6px;justify-content:center}
+.intro-dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.intro-dots i.on{background:var(--accent);width:22px;border-radius:4px}
+.sheet>*{flex:none}
+#kinds{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+#kinds button{flex:none}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:99px;padding:6px 10px;cursor:pointer}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
 .citysum{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .citysum button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:12px;padding:10px;cursor:pointer;font:inherit;text-align:left}
 .citysum button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
@@ -155,11 +183,12 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
   <header class="top">
     <div class="wrap">
       <div class="brand">go-<b>transfer</b>-go</div>
-      <div class="who" id="who"></div>
+      <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
     </div>
     <div class="lane"></div>
   </header>
   <main><div class="wrap" id="view"></div></main>
+  <button class="fab" id="fab" type="button" aria-label="Чат поддержки" title="Задать вопрос" hidden><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.4"/><path d="M12 14.5v.01"/></svg></button>
   <nav class="tabs" id="tabs" hidden><div class="inner">
     <button data-tab="map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Карта</span></button>
     <button data-tab="publish"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Я еду</span></button>
@@ -174,8 +203,8 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
 <script>
 (function(){
 const store={
-  get(k,d){try{const v=localStorage.getItem("gps2_"+k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){try{localStorage.setItem("gps2_"+k,JSON.stringify(v))}catch(e){}}
+  get(k,d){try{const v=localStorage.getItem("gps3_"+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem("gps3_"+k,JSON.stringify(v))}catch(e){}}
 };
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const view=$("#view");
@@ -202,15 +231,16 @@ function place(name){const c=CITIES[name];return c?{name,lat:c[0],lon:c[1]}:null
 const KINDS={
   seat:{t:"Пассажиры",unit:"мест",color:"--k-seat",price:"за место"},
   parcel:{t:"Посылки",unit:"кг",color:"--k-parcel",price:"за кг"},
-  car:{t:"Авто на трале",unit:"авто",color:"--k-car",price:"за авто"}
+  car:{t:"Трал",unit:"авто",color:"--k-car",price:"за авто"},
+  drive:{t:"Перегон",unit:"авто",color:"--k-drive",price:"за перегон"}
 };
 const now=Date.now();
-const R=(id,from,to,inH,driver,vehicle,caps,prices,rating,extra)=>({id,from:place(from),to:place(to),at:Math.round((now+inH*H)/9e5)*9e5,driver,vehicle,caps,prices,rating,note:extra||""});
+const R=(id,from,to,inH,driver,vehicle,caps,prices,rating,extra,carrier)=>({carrier:carrier||"private",id,from:place(from),to:place(to),at:Math.round((now+inH*H)/9e5)*9e5,driver,vehicle,caps,prices,rating,note:extra||""});
 const seedRoutes=[
   R("r1","Кишинёв","Мюнхен",14,"Ион","VW Passat, универсал",{seat:4,parcel:40},{seat:110,parcel:1.5},4.9,"Еду через Яссы, Будапешт, Вену. Могу забрать по Кишинёву."),
-  R("r2","Бельцы","Франкфурт",30,"Василе","Mercedes Sprinter, 8 мест",{seat:5,parcel:250},{seat:120,parcel:1.2},4.8,"Остановки: Унгены, Яссы, Нюрнберг."),
+  R("r2","Бельцы","Франкфурт",30,"Василе","Маршрутка Mercedes Sprinter, 8 мест",{seat:5,parcel:250},{seat:120,parcel:1.2},4.8,"Остановки: Унгены, Яссы, Нюрнберг.","bus"),
   R("r3","Милан","Кишинёв",6,"Андрей","Mercedes Sprinter, грузовой",{parcel:300},{parcel:1},4.9,"Забираю посылки по Милану до 16:00. Доставка до двери в Кишинёве и Бельцах."),
-  R("r4","Болонья","Кишинёв",40,"Сергей","Iveco Daily",{seat:3,parcel:200},{seat:130,parcel:1.1},4.7,"Прием посылок в Болонье и Падуе."),
+  R("r4","Болонья","Кишинёв",40,"Сергей","Iveco Daily",{seat:3,parcel:200},{seat:130,parcel:1.1},4.7,"Прием посылок в Болонье и Падуе.","bus"),
   R("r5","Рим","Бельцы",70,"Михаил","Ford Transit",{parcel:400},{parcel:1.2},4.6,""),
   R("r6","Падуя","Кишинёв",20,"Дорин","Renault Master",{seat:2,parcel:150},{seat:120,parcel:1},5.0,"Через Венецию и Верону."),
   R("r7","Цюрих","Кишинёв",26,"Николай","Трал на 2 машины + Iveco",{car:1,parcel:100},{car:650,parcel:1.5},4.9,"Забираю авто в Цюрихе, Базеле, Берне. Документы и растаможка не входят."),
@@ -220,9 +250,25 @@ const seedRoutes=[
   R("r11","Мюнхен","Кишинёв",9,"Петру","Mercedes Vito",{seat:4,parcel:120},{seat:110,parcel:1.3},4.8,""),
   R("r12","Кишинёв","Рим",60,"Лилия","Toyota Corolla",{seat:2,parcel:20},{seat:130,parcel:2},5.0,"Не курим в машине."),
   R("r13","Турин","Кагул",80,"Георге","VW Crafter",{parcel:350},{parcel:1},4.7,""),
-  R("r14","Кишинёв","Берлин",22,"Дмитрий","Opel Vivaro",{seat:6,parcel:80},{seat:120,parcel:1.4},4.6,"")
+  R("r14","Кишинёв","Берлин",22,"Дмитрий","Opel Vivaro",{seat:6,parcel:80},{seat:120,parcel:1.4},4.6,""),
+  R("r15","Кишинёв","Рим",48,"Molda Trans","Автобус Setra, 50 мест",{seat:12,parcel:300},{seat:95,parcel:1},4.6,"Рейсовый автобус. Остановки: Бухарест, Будапешт, Болонья.","bus"),
+  R("r16","Кишинёв","Милан",16,"Влад","Toyota RAV4",{seat:3,parcel:30},{seat:100,parcel:1.5},4.9,"Еду сам на своей машине, не хочу ехать с пустыми местами."),
+  R("r17","Париж","Кишинёв",20,"Кристина","Renault Scenic",{seat:2,parcel:60},{seat:150,parcel:1.5},4.8,"Возьму посылки со сладостями и продуктами, передам в руки в Кишинёве."),
+  R("r18","Лион","Кишинёв",55,"EuroBus MD","Маршрутка Mercedes Sprinter",{seat:6,parcel:200},{seat:140,parcel:1.2},4.5,"","bus"),
+  R("d1","Цюрих","Кишинёв",40,"Алексей","Без своей машины",{drive:1},{drive:250},4.9,"Буду в Цюрихе 26 октября. Пригоню вашу машину в Кишинёв, права категории B, стаж 12 лет."),
+  R("d2","Мюнхен","Бельцы",60,"Сергиу","Без своей машины",{drive:1},{drive:220},4.8,"Еду в Мюнхен на автобусе, обратно могу пригнать машину."),
+  R("d3","Милан","Кишинёв",30,"Олег","Без своей машины",{drive:1},{drive:230},5.0,"Перегоняю машины 5 лет. Нужны доверенность и Green Card."),
+  R("d4","Женева","Кишинёв",70,"Марин","Без своей машины",{drive:1},{drive:260},4.7,"")
 ];
 
+/* Запросы «ищу транспорт» (оранжевые точки ожидания) */
+const WANT={seat:"Ищу место",parcel:"Ищу, кто возьмёт посылку",car:"Ищу трал для машины",drive:"Ищу, кто пригонит машину"};
+function seedReqs(){const Q=(id,from,to,inH,name,people,kind,note)=>({id,from:place(from),to:place(to),at:Math.round((now+inH*H)/36e5)*36e5,name,people,kind,note});
+  return [Q("q1","Кишинёв","Бухарест",20,"Ана",2,"seat","С ребёнком, багаж небольшой."),Q("q2","Кишинёв","Бухарест",44,"Ион",1,"seat",""),
+    Q("q3","Бельцы","Варшава",26,"Наталья",1,"parcel","Коробка 10 кг, документы и подарки."),Q("q4","Кишинёв","Афины",70,"Михай",3,"seat","Можем выехать в любой день на этой неделе."),
+    Q("q5","Рим","Кишинёв",30,"Елена",1,"parcel","Продукты и сладости, 8 кг."),Q("q6","Цюрих","Кишинёв",50,"Виорел",1,"car","Купил BMW X3, деньги продавцу переведены."),
+    Q("q7","Кишинёв","Бухарест",30,"Дан",1,"seat","")]}
+function waitHubs(){const m={};state.requests.filter(q=>q.at>Date.now()-12*H).forEach(q=>{const k=q.from.name;const h=m[k]||(m[k]={t:"wait",name:k,lat:q.from.lat,lon:q.from.lon,n:0,people:0});h.n++;h.people+=q.people});return Object.values(m)}
 const PLANS={
   pay:{t:"Разовый сбор",p:"2 € за бронь",fee:2},
   sub:{t:"Подписка",p:"4,99 € в месяц",fee:0}
@@ -235,13 +281,16 @@ let state={
   chats:store.get("chats",[]),
   bookings:store.get("bookings",[]),
   plan:store.get("plan","pay"),
+  requests:store.get("requests",null)||seedReqs(),
+  seenIntro:store.get("seenIntro",false),
+  support:store.get("support",[]),
   kind:"all",
   A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A"},
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
-const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan)};
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support)};
 
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
@@ -314,6 +363,7 @@ function buildMap(box,opts){
   let k=1;
   const zoom=d3.zoom().scaleExtent([1,12]).translateExtent([[-W*.5,-Hh*.5],[W*1.5,Hh*1.5]]).on("zoom",e=>{g.attr("transform",e.transform);k=e.transform.k;g.selectAll(".scl").attr("r",function(){return +this.dataset.r/k});
     g.selectAll("text[data-x]").each(function(){const d=this.dataset;this.style.fontSize=(+(d.fs||11))/k+"px";this.style.strokeWidth=(d.fs?2.5:3)/k+"px";this.setAttribute("x",+d.x+(+(d.dx||10))/k);this.setAttribute("y",+d.y+(+(d.dy||-8))/k)});
+    g.selectAll(".sclg").attr("transform",function(){return `translate(${this.dataset.x},${this.dataset.y}) scale(${1/k})`});
     svg.classed("z1",k>=1.7).classed("z2",k>=3).classed("z3",k>=5)});
   svg.call(zoom).on("dblclick.zoom",null);
   svg.on("click",e=>{if(e.defaultPrevented)return;const [x,y]=d3.zoomTransform(svg.node()).invert(d3.pointer(e));const ll_=proj.invert([x,y]);opts.onPick&&opts.onPick(ll_[1],ll_[0])});
@@ -326,7 +376,12 @@ function buildMap(box,opts){
 }
 function arcPath(m,a,b){const p=m.xy(a),q=m.xy(b);const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,dx=q[0]-p[0],dy=q[1]-p[1];const c=[mx-dy*.18,my+dx*.18];return `M${p[0]},${p[1]}Q${c[0]},${c[1]} ${q[0]},${q[1]}`}
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-function mainKind(r){return r.caps.car?"car":r.caps.seat?"seat":"parcel"}
+function mainKind(r){return r.caps.car?"car":r.caps.drive?"drive":r.caps.seat?"seat":"parcel"}
+const carrierName=r=>r.carrier==="bus"?"Автобус / маршрутка":r.caps.drive?"Едет без машины":"Частный водитель";
+function hubPoints(list){const m={};
+  const add=(p,t,r)=>{const key=t+":"+p.name;const h=m[key]||(m[key]={t,name:p.name,lat:p.lat,lon:p.lon,n:0});h.n++};
+  list.forEach(r=>{add(r.from,"dep",r);add(r.to,"arr",r)});
+  const v=Object.values(m);v.forEach(h=>{h.both=!!m[(h.t==="dep"?"arr":"dep")+":"+h.name]});return v}
 function drawPin(m,p,label,fill){
   m.lp.append("circle").attr("class","scl").attr("data-r",8).attr("r",8/m.k).attr("cx",m.xy(p)[0]).attr("cy",m.xy(p)[1]).attr("fill",fill).attr("stroke",css("--surface")).attr("stroke-width",2).attr("vector-effect","non-scaling-stroke");
   const [x,y]=m.xy(p);m.ll.append("text").attr("class","city-lbl").attr("data-x",x).attr("data-y",y).attr("x",x+10/m.k).attr("y",y-8/m.k).style("font-size",11/m.k+"px").style("stroke-width",3/m.k+"px").text(label);
@@ -354,15 +409,17 @@ function glMap(box,opts){
   let loaded=false,items=[];const q=[];const ready=f=>loaded?f():q.push(f);
   map.on("load",()=>{loaded=true;
     map.addSource("ourcities",{type:"geojson",data:{type:"FeatureCollection",features:(window.EU_PLACES||[]).map(([n,lat,lon,rk])=>({type:"Feature",properties:{name:n,rk},geometry:{type:"Point",coordinates:[lon,lat]}}))}});
-    map.addLayer({id:"ourcities",type:"circle",source:"ourcities",filter:["<=",["get","rk"],["step",["zoom"],0,4,1,5,2,6,3]],paint:{"circle-radius":5,"circle-color":"#ffffff","circle-stroke-color":"#1E2A39","circle-stroke-width":1.5}});
+    map.addLayer({id:"ourcities",type:"circle",source:"ourcities",filter:["<=",["get","rk"],["step",["zoom"],-1,4.5,0,5.5,1,6.5,2,7.5,3]],paint:{"circle-radius":4,"circle-color":"#ffffff","circle-stroke-color":"#1E2A39","circle-stroke-width":1.5}});
     q.splice(0).forEach(f=>f())});
   const fc=fs=>({type:"FeatureCollection",features:fs});
-  const set=(id,data,layers)=>{const src=map.getSource(id);if(src){src.setData(data);return}map.addSource(id,{type:"geojson",data});layers.forEach(l=>map.addLayer({...l,source:id}))};
+  const set=(id,data,layers)=>{const src=map.getSource(id);if(src){src.setData(data);return}map.addSource(id,{type:"geojson",data});layers.forEach(l=>{try{map.addLayer({...l,source:id})}catch(e){console.error("layer "+l.id+": "+e.message)}})};
   map.on("click",e=>{
     const box=[[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]];
     const cf=map.getLayer("ourcities")?map.queryRenderedFeatures(box,{layers:["ourcities"]}):[];
     if(cf.length&&opts.onCity){const c=cf[0];opts.onCity({name:c.properties.name,lat:c.geometry.coordinates[1],lon:c.geometry.coordinates[0]});return}
-    const ls=["routes","starts"].filter(l=>map.getLayer(l));
+    const hf=map.getLayer("hub-dep")?map.queryRenderedFeatures(box,{layers:["hub-dep","hub-arr"]}):[];
+    if(hf.length&&opts.onHub){const h=hf[0];opts.onHub({t:h.properties.t,name:h.properties.name,lat:h.geometry.coordinates[1],lon:h.geometry.coordinates[0]});return}
+    const ls=["routes"].filter(l=>map.getLayer(l));
     const f=ls.length&&!opts.picking()?map.queryRenderedFeatures(box,{layers:ls}).filter(x=>x.properties.shown):[];
     if(f.length){opts.onSelect&&opts.onSelect(f[0].properties.id);return}
     opts.onPick&&opts.onPick(e.lngLat.lat,e.lngLat.lng);
@@ -371,8 +428,16 @@ function glMap(box,opts){
     routes(list){items=list;ready(()=>{
       set("routes",fc(list.map(x=>({type:"Feature",properties:{id:x.r.id,col:x.col,shown:x.shown,sel:x.r.id===state.sel},geometry:{type:"LineString",coordinates:arcCoords(x.r.from,x.r.to)}}))),
         [{id:"routes",type:"line",layout:{"line-cap":"round"},paint:{"line-color":["get","col"],"line-width":["case",["get","sel"],5,2.5],"line-opacity":["case",["get","shown"],.9,.15]}}]);
-      set("starts",fc(list.filter(x=>x.shown).map(x=>({type:"Feature",properties:{id:x.r.id,col:x.col,shown:true},geometry:{type:"Point",coordinates:[x.r.from.lon,x.r.from.lat]}}))),
-        [{id:"starts",type:"circle",paint:{"circle-radius":6,"circle-color":["get","col"],"circle-stroke-width":2,"circle-stroke-color":"#ffffff"}}]);
+    })},
+    waits(ws,busy){ws.forEach(h=>{const d=document.createElement("div");d.className="glwait";d.setAttribute("role","button");d.setAttribute("aria-label","Ждут транспорт: "+h.name);d.innerHTML=`<i></i><b>${h.people}</b>`;
+      d.addEventListener("click",e=>{e.stopPropagation();opts.onWait&&opts.onWait(h)});
+      new maplibregl.Marker({element:d,offset:[0,busy.has(h.name)?-22:0]}).setLngLat([h.lon,h.lat]).addTo(map)})},
+    points(hs){ready(()=>{
+      const data=fc(hs.map(h=>({type:"Feature",properties:{t:h.t,name:h.name,n:h.n},geometry:{type:"Point",coordinates:[h.lon,h.lat]}})));
+      const lay=(t,dx)=>({id:"hub-"+t,type:"circle",filter:["==",["get","t"],t],paint:{"circle-radius":["+",8,["min",["get","n"],6]],"circle-color":css(t==="dep"?"--dep":"--arr"),"circle-stroke-width":2,"circle-stroke-color":"#ffffff","circle-translate":[dx,0]}});
+      const lbl=(t,dx)=>({id:"hubn-"+t,type:"symbol",filter:["==",["get","t"],t],layout:{"text-field":["to-string",["get","n"]],"text-font":["Noto Sans Bold"],"text-size":11,"text-allow-overlap":true},paint:{"text-color":"#ffffff","text-translate":[dx,0]}});
+      set("hubs",data,[lay("dep",-8),lay("arr",8)]);
+      set("hubsn",data,[lbl("dep",-8),lbl("arr",8)]);
     })},
     select(){api.routes(items)},
     pin(p,label,color){const d=document.createElement("div");d.className="glpin";d.innerHTML=`<i style="background:${color}"></i><span>${esc(label)}</span>`;new maplibregl.Marker({element:d,anchor:"left",offset:[-8,0]}).setLngLat([p.lon,p.lat]).addTo(map)},
@@ -389,8 +454,20 @@ function svgMap(box,opts){
     routes(list){list.forEach(x=>{
       m.lr.append("path").attr("class","route"+(x.shown?"":" dim")+(state.sel===x.r.id?" sel":"")).attr("data-id",x.r.id).attr("d",arcPath(m,x.r.from,x.r.to)).attr("stroke",x.col)
         .on("click",e=>{e.stopPropagation();if(x.shown)opts.onSelect&&opts.onSelect(x.r.id)});
-      if(x.shown)m.lp.append("circle").attr("class","scl").attr("data-r",5).attr("r",5).attr("cx",m.xy(x.r.from)[0]).attr("cy",m.xy(x.r.from)[1]).attr("fill",x.col).attr("stroke",css("--surface")).attr("stroke-width",1.5).attr("vector-effect","non-scaling-stroke").style("cursor","pointer")
-        .on("click",e=>{e.stopPropagation();opts.onSelect&&opts.onSelect(x.r.id)});
+    })},
+    waits(ws,busy){ws.forEach(h=>{const [x,y]=m.xy(h),dy=busy.has(h.name)?-20:0;
+      const gg=m.lp.append("g").attr("class","hub wait sclg").attr("data-x",x).attr("data-y",y).attr("transform",`translate(${x},${y}) scale(${1/m.k})`)
+        .attr("role","button").attr("aria-label","Ждут транспорт: "+h.name+", человек: "+h.people).on("click",e=>{e.stopPropagation();opts.onWait&&opts.onWait(h)});
+      gg.append("circle").attr("class","ring").attr("cy",dy).attr("r",10);
+      gg.append("circle").attr("class","core").attr("cy",dy).attr("r",10).attr("stroke",css("--surface")).attr("stroke-width",2);
+      gg.append("text").attr("y",dy).text(h.people);
+    })},
+    points(hs){hs.forEach(h=>{const [x,y]=m.xy(h),dx=h.both?(h.t==="dep"?-8:8):0,r=8+Math.min(h.n,6);
+      const gg=m.lp.append("g").attr("class","hub sclg").attr("data-x",x).attr("data-y",y).attr("transform",`translate(${x},${y}) scale(${1/m.k})`)
+        .attr("role","button").attr("aria-label",(h.t==="dep"?"Отправление: ":"Прибытие: ")+h.name+", поездок: "+h.n)
+        .on("click",e=>{e.stopPropagation();opts.onHub&&opts.onHub(h)});
+      gg.append("circle").attr("cx",dx).attr("r",r).attr("fill",css(h.t==="dep"?"--dep":"--arr")).attr("stroke",css("--surface")).attr("stroke-width",2);
+      gg.append("text").attr("x",dx).attr("y",0).text(h.n);
     })},
     select(id){m.lr.selectAll("path").classed("sel",function(){return this.dataset.id===id});m.lr.selectAll("path").filter(function(){return this.dataset.id===id}).raise()},
     pin(p,label,color){drawPin(m,p,label,color)},
@@ -444,23 +521,27 @@ function renderMap(){
       <div class="mapbar"><span class="pill" id="maphint"></span></div>
       <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div>
     </div>
+    <div class="legend"><span><i class="dot" style="background:var(--dep);width:12px;height:12px"></i>Отправление</span><span><i class="dot" style="background:var(--arr);width:12px;height:12px"></i>Прибытие</span><span><i class="dot" style="background:var(--wait);width:12px;height:12px"></i>Ждут транспорт</span><span>Цифра: сколько поездок или людей</span></div>
     <p class="small muted">${mapNote()}</p>
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 id="cnt"></h2><button class="btn ghost sm" id="reset" type="button">Сбросить</button></div>
+    <button class="btn ghost" id="wantbtn" type="button">Не нашли транспорт? Поставить точку ожидания</button>
+    <p class="small muted">Цены ориентировочные. Окончательную цену вы согласуете с водителем во внутреннем чате.</p>
     <div class="list" id="offers"></div>`;
   const mb=$("#mb");
-  const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onSelect:id=>selectRoute(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
+  const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onWait:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else waitSheet(h)},onHub:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else citySheet(h,h.t==="dep"?"out":"in")},onSelect:id=>selectRoute(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
   mapCtx=m;
   const list=state.routes.filter(matches).sort((a,b)=>a.at-b.at);
   const shown=new Set(list.map(r=>r.id));
   m.routes(state.routes.filter(r=>r.at>Date.now()-H).map(r=>({r,col:css(KINDS[mainKind(r)].color),shown:shown.has(r.id)})));
+  const hp=hubPoints(list);m.points(hp);m.waits(waitHubs(),new Set([...hp.map(h=>h.name),state.A&&state.A.name,state.B&&state.B.name]));
   if(state.A)m.pin(state.A,"А · "+state.A.name,css("--ink"));
   if(state.B)m.pin(state.B,"Б · "+state.B.name,css("--warn"));
-  $("#maphint").textContent=state.pick==="A"?"Нажмите на карту: откуда едете или отправляете":state.pick==="B"?"Нажмите на карту: куда":"Нажмите на город, маршрут или точку отправления";
+  $("#maphint").textContent=state.pick==="A"?"Нажмите на карту: откуда едете или отправляете":state.pick==="B"?"Нажмите на карту: куда":"Нажмите на любую цветную точку";
   $("#cnt").textContent=list.length?`Ближайшие отправления: ${list.length}`:"Нет подходящих отправлений";
   $("#offers").innerHTML=list.length?list.map(offerCard).join(""):`<div class="card empty">По этому направлению пока никто не едет. Попробуйте другой город рядом или включите «Все» типы.</div>`;
   const focusPts=[state.A,state.B].filter(Boolean);
   if(focusPts.length===2)m.focus(focusPts);
-  bindOffers();bindSearch(state,renderMap);
+  bindOffers();bindSearch(state,renderMap);$("#wantbtn").onclick=()=>newWaitSheet();
   $("#pA").onclick=()=>{state.pick=state.pick==="A"?null:"A";renderMap()};
   $("#pB").onclick=()=>{state.pick=state.pick==="B"?null:"B";renderMap()};
   $$("#kinds button").forEach(b=>b.onclick=()=>{state.kind=b.dataset.k;state.sel=null;renderMap()});
@@ -483,9 +564,11 @@ function citySheet(c,side){
   const inn=state.routes.filter(r=>live(r)&&near(r.to)).sort((a,b)=>a.at-b.at);
   side=side||(out.length||!inn.length?"out":"in");
   const list=side==="out"?out:inn;
+  const sum=a=>{const seats=a.reduce((x,r)=>x+(r.caps.seat||0),0),bus=a.filter(r=>r.carrier==="bus").length,pr=a.length-bus;
+    return [pr?pr+" частн.":"",bus?bus+" автобус.":"",seats?seats+" своб. мест":""].filter(Boolean).join(" · ")||"нет поездок"};
   sheet(`<h2>${esc(c.name)}</h2>
-    <div class="citysum"><button type="button" data-s="out" aria-pressed="${side==="out"}"><span class="small muted">Выезжают отсюда</span><b>${out.length}</b></button>
-      <button type="button" data-s="in" aria-pressed="${side==="in"}"><span class="small muted">Едут сюда</span><b>${inn.length}</b></button></div>
+    <div class="citysum"><button type="button" data-s="out" aria-pressed="${side==="out"}"><span class="small muted"><i class="dot" style="background:var(--dep)"></i> Выезжают отсюда</span><b>${out.length}</b><span class="small muted">${sum(out)}</span></button>
+      <button type="button" data-s="in" aria-pressed="${side==="in"}"><span class="small muted"><i class="dot" style="background:var(--arr)"></i> Едут сюда</span><b>${inn.length}</b><span class="small muted">${sum(inn)}</span></button></div>
     <div class="list">${list.length?list.map(offerCard).join(""):`<p class="small muted">${side==="out"?"Отсюда пока никто не выезжает.":"Сюда пока никто не едет."} Попробуйте соседний город или опубликуйте свой маршрут.</p>`}</div>
     <div class="row"><button class="btn ghost sm" type="button" id="csA">Искать отсюда</button><button class="btn ghost sm" type="button" id="csB">Искать сюда</button></div>
     <button class="btn ghost" type="button" id="csX">Закрыть</button>`,s=>{
@@ -497,14 +580,52 @@ function citySheet(c,side){
     s.querySelector("#csX").onclick=closeSheet;
   });
 }
-function capPills(r){return Object.entries(r.caps).filter(([,v])=>v>0).map(([k,v])=>`<span class="pill"><i class="dot" style="background:var(${KINDS[k].color})"></i>${KINDS[k].t}: ${v} ${KINDS[k].unit} · ${eur(r.prices[k])} ${KINDS[k].price}</span>`).join("")}
+function waitSheet(h){
+  const reqs=state.requests.filter(q=>q.at>Date.now()-12*H&&dist([h.lat,h.lon],[q.from.lat,q.from.lon])<60).sort((a,b)=>a.at-b.at);
+  const by={};reqs.forEach(q=>(by[q.to.name]=by[q.to.name]||[]).push(q));
+  sheet(`<h2><i class="dot" style="background:var(--wait)"></i> Ждут транспорт из ${esc(h.name)}</h2>
+    <p class="small muted">Эти люди не нашли попутку. Едете в ту же сторону? Напишите им и договоритесь о цене.</p>
+    ${Object.entries(by).map(([to,qs])=>`<div class="card"><div class="kv"><span>→ ${esc(to)}</span><span>${qs.reduce((x,q)=>x+q.people,0)} чел. · ${qs.length} запр.</span></div>
+      ${qs.map(q=>`<div class="kv" style="align-items:center"><span style="font-weight:400">${esc(q.name)}${q.mine?" (вы)":""} · <span class="mono">${when(q.at).txt}</span><br><span class="small muted">${WANT[q.kind]}${q.kind==="seat"?", "+q.people+" чел.":""}${q.note?" · "+esc(q.note):""}</span></span>${q.mine?`<button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button>`:`<button class="btn sm" data-wq="${q.id}" type="button">Написать</button>`}</div>`).join("")}
+      <button class="btn ghost sm" type="button" data-go="${esc(to)}">Я еду в ${esc(to)}: опубликовать маршрут</button></div>`).join("")||`<p class="small muted">Здесь пока никто не ждёт.</p>`}
+    <button class="btn ghost" type="button" id="wX">Закрыть</button>`,s=>{
+    s.querySelector("#wX").onclick=closeSheet;
+    s.querySelectorAll("[data-wq]").forEach(b=>b.onclick=()=>openReqChat(b.dataset.wq));
+    s.querySelectorAll("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();closeSheet();toast("Точка ожидания убрана");render()});
+    s.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{const to=reqs.find(q=>q.to.name===b.dataset.go).to;state.pub.A={name:h.name,lat:h.lat,lon:h.lon};state.pub.B=to;state.pub.pick=null;state.tab="publish";save();render()});
+  });
+}
+function newWaitSheet(){
+  const A=state.A,B=state.B;
+  if(!A||!B){toast("Сначала укажите вверху «Откуда» и «Куда»");state.pick=!A?"A":"B";renderMap();return}
+  const d=new Date(Date.now()+864e5).toISOString().slice(0,10);
+  sheet(`<h2><i class="dot" style="background:var(--wait)"></i> Поставить точку ожидания</h2>
+    <p class="small muted">На карте загорится мигающая оранжевая точка. Водители, которые едут в эту сторону, увидят её и напишут вам.</p>
+    <div class="kv"><span class="muted">Маршрут</span><span>${esc(A.name)} → ${esc(B.name)}</span></div>
+    <label for="wk">Что нужно<select id="wk">${Object.entries(WANT).map(([k,t])=>`<option value="${k}" ${state.kind===k?"selected":""}>${t}</option>`).join("")}</select></label>
+    <div class="row"><label for="wd">Когда<input id="wd" type="date" value="${d}"></label><label for="wp">Сколько человек<input id="wp" type="number" min="1" max="9" value="1"></label></div>
+    <label for="wn">Комментарий<input id="wn" placeholder="Например: багаж 1 чемодан"></label>
+    <button class="btn" id="wok" type="button">Поставить точку</button>
+    <button class="btn ghost" id="wcl" type="button">Отмена</button>`,s=>{
+    s.querySelector("#wcl").onclick=closeSheet;
+    s.querySelector("#wok").onclick=()=>{
+      state.requests.push({id:"q"+Date.now(),from:A,to:B,at:new Date(s.querySelector("#wd").value+"T09:00").getTime(),name:state.user.name,people:+s.querySelector("#wp").value||1,kind:s.querySelector("#wk").value,note:s.querySelector("#wn").value,mine:true});
+      save();closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap();
+    };
+  });
+}
+function openReqChat(id){const q=state.requests.find(x=>x.id===id);let c=state.chats.find(x=>x.req===id);
+  if(!c){c={id:"c"+Date.now(),req:id,with:q.name,title:`Ищет: ${q.from.name} → ${q.to.name}`,msgs:[],unread:0};state.chats.unshift(c);
+    c.draft=`Здравствуйте! Я еду ${q.from.name} → ${q.to.name} ${when(q.at).txt.split(",")[0]}. Могу взять${q.kind==="seat"?" вас":""}. Обсудим цену?`}
+  save();state.openChat=c.id;state.tab="chats";render()}
+function capPills(r){return Object.entries(r.caps).filter(([,v])=>v>0).map(([k,v])=>`<span class="pill"><i class="dot" style="background:var(${KINDS[k].color})"></i>${KINDS[k].t}: ${v} ${KINDS[k].unit} · от ${eur(r.prices[k])} ${KINDS[k].price}</span>`).join("")}
 function offerCard(r){
   const w=when(r.at);const mine=r.mine;
   return `<div class="card offer${state.sel===r.id?" sel":""}" data-id="${r.id}">
     <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
     <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
     <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${esc(r.driver)} ★${r.rating.toFixed(1)} · ${esc(r.vehicle)}${r.note?`<br>${esc(r.note)}`:""}</div>
-    <div class="caps">${capPills(r)}</div>
+    <div class="caps"><span class="pill ${r.carrier==="bus"?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
     <div class="roadinfo"></div>
     <div class="acts">${mine?`<span class="pill ok">Ваш маршрут, ждите сообщений</span>`:`<button class="btn ghost sm" data-chat="${r.id}">Написать</button><button class="btn sm" data-book="${r.id}">Забронировать</button>`}</div>
   </div>`;
@@ -526,11 +647,12 @@ function bookSheet(id){
       <h2>${esc(r.from.name)} → ${esc(r.to.name)}</h2>
       <p class="small muted">${when(r.at).txt} · ${esc(r.driver)}, ${esc(r.vehicle)}</p>
       <div class="seg" id="bk">${ks.map(x=>`<button type="button" data-k="${x}" aria-pressed="${x===k}"><i class="dot" style="background:var(${KINDS[x].color})"></i>${KINDS[x].t}</button>`).join("")}</div>
-      <label for="qty">${k==="seat"?"Сколько мест":k==="parcel"?"Вес посылки, кг":"Сколько машин"}<input id="qty" type="number" min="1" max="${r.caps[k]}" step="1" value="${Math.min(qty,r.caps[k])}"></label>
-      ${k==="car"?`<label for="carinfo">Какая машина<input id="carinfo" value="Audi A4, 2019, на ходу"></label>`:""}
-      <div class="kv"><span class="muted">Водителю, при встрече или онлайн</span><span>${eur(cost)}</span></div>
+      <label for="qty">${k==="seat"?"Сколько мест":k==="parcel"?"Вес посылки, кг":k==="drive"?"Сколько машин пригнать":"Сколько машин"}<input id="qty" type="number" min="1" max="${r.caps[k]}" step="1" value="${Math.min(qty,r.caps[k])}"></label>
+      ${k==="car"||k==="drive"?`<label for="carinfo">${k==="drive"?"Какую машину пригнать":"Какая машина"}<input id="carinfo" value="Audi A4, 2019, на ходу, оплачена продавцу"></label>`:""}
+      ${k==="drive"?`<p class="small muted">Для перегона понадобятся доверенность на водителя, страховка Green Card и документы на машину.</p>`:""}
+      <div class="kv"><span class="muted">Водителю, ориентировочно</span><span>${eur(cost)}</span></div>
       <div class="kv"><span class="muted">Сервисный сбор (${PLANS[state.plan].t.toLowerCase()})</span><span>${fee?eur(fee):"включён в подписку"}</span></div>
-      <p class="small muted">Сбор оплачивается сейчас и подтверждает бронь. Деньги водителю защищены: он получит их после поездки.</p>
+      <p class="small muted">Точную цену вы согласуете с водителем в чате. Сервисный сбор оплачивается сейчас и подтверждает бронь.</p>
       <button class="btn" id="pay" type="button">Оплатить ${fee?eur(fee):""} и забронировать</button>
       <button class="btn ghost" id="cl" type="button">Отмена</button>`;
     s.querySelectorAll("#bk button").forEach(b=>b.onclick=()=>{k=b.dataset.k;qty=k==="parcel"?5:1;draw(s)});
@@ -552,12 +674,15 @@ function chatFor(r){let c=state.chats.find(x=>x.route===r.id);if(!c){c={id:"c"+D
 function openChatFor(id){const r=state.routes.find(x=>x.id===id);const c=chatFor(r);
   if(!c.msgs.length){const k=state.kind!=="all"?state.kind:mainKind(r);
     c.draft=k==="parcel"?`Здравствуйте! Хочу передать посылку из ${state.A&&state.A.name.indexOf("Точка")<0?state.A.name:r.from.name} в ${r.to.name}. Примерно 5 кг. Когда и где можно отдать?`
+      :k==="drive"?`Здравствуйте! Я купил машину в ${r.from.name}, нужно пригнать её в ${r.to.name}. Машина оплачена, документы готовы. Сколько возьмёте за перегон?`
       :k==="car"?`Здравствуйте! Нужно перевезти машину из ${r.from.name} в ${r.to.name}. Есть место на трале?`
       :`Здравствуйте! Есть свободное место до ${r.to.name}? Откуда забираете?`}
   save();state.openChat=c.id;state.tab="chats";render()}
 const REPLIES={
   parcel:["Добрый день! Да, беру. Привезите сегодня до 16:00, адрес скину. Оплата 1 € за кг, можно при получении.","Посылку заберу. Подпишите имя и телефон получателя на коробке."],
   car:["Здравствуйте! Одно место на трале есть. Машина на ходу? Пришлите фото и адрес погрузки.","Погрузка утром в день выезда. Документы на машину передайте мне в руки."],
+  req:["Здравствуйте! Да, ещё ищу. Во сколько выезжаете и сколько это будет стоить?","Подходит, договорились. Напишите, где и во сколько встречаемся."],
+  drive:["Здравствуйте! Могу пригнать. Нужны доверенность на моё имя, Green Card и документы на машину. Топливо и платные дороги за ваш счёт, за работу 250 €, можно обсудить.","Пришлите фото машины и адрес продавца. По дороге буду присылать, где я."],
   seat:["Привет! Место есть. Забираю с центральной автостанции или по адресу за 5 €.","Багаж до 20 кг входит в цену. Напишите номер, я добавлю вас в список."]
 };
 function renderChats(){
@@ -579,7 +704,7 @@ function renderChat(c){
   $("#bk").onclick=()=>{state.openChat=null;renderChats()};
   if($("#bkr"))$("#bkr").onclick=()=>bookSheet(r.id);
   $("#cf").onsubmit=e=>{e.preventDefault();const v=$("#ci").value.trim();if(!v)return;c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
-    const k=r?mainKind(r):"seat";const pool=/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
+    const k=r?mainKind(r):"seat";const pool=c.req?REPLIES.req:/пригна|перегон/i.test(v)?REPLIES.drive:/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
     const n=c.msgs.filter(m=>!m.me).length;
     setTimeout(()=>{c.msgs.push({me:false,text:pool[n%pool.length],t:Date.now()});if(state.openChat===c.id&&state.tab==="chats")renderChat(c);else{c.unread=(c.unread||0)+1;updateBadge()}save()},1400)};
   window.scrollTo(0,document.body.scrollHeight);
@@ -600,11 +725,13 @@ function renderPublish(){
       <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div></div>
     <form class="card" id="pf">
       <div class="row"><label for="pd">Дата<input id="pd" type="date" required></label><label for="pt">Время<input id="pt" type="time" value="06:00" required></label></div>
+      <label for="pcar">Кто вы<select id="pcar"><option value="private">Частный водитель, еду на своей машине</option><option value="bus">Автобус или маршрутка</option><option value="drive">Еду без машины, могу пригнать чужую</option></select></label>
       <label for="pv">Машина<input id="pv" value="Mercedes Vito, 8 мест" required></label>
       <p class="small muted">Что можете взять (оставьте 0, если не берёте)</p>
       <div class="row"><label for="cs">Свободных мест<input id="cs" type="number" min="0" max="20" value="4"></label><label for="ps">Цена за место, €<input id="ps" type="number" min="0" value="120"></label></div>
       <div class="row"><label for="cp">Посылки, до кг<input id="cp" type="number" min="0" value="100"></label><label for="pp">Цена за кг, €<input id="pp" type="number" min="0" step="0.1" value="1.2"></label></div>
       <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" min="0" max="10" value="0"></label><label for="pc">Цена за авто, €<input id="pc" type="number" min="0" value="600"></label></div>
+      <div class="row"><label for="cd">Перегон: пригоню авто<input id="cd" type="number" min="0" max="1" value="0"></label><label for="pdr">Хочу за перегон, €<input id="pdr" type="number" min="0" value="250"></label></div>
       <label for="pn">Комментарий<input id="pn" placeholder="Например: остановки в Яссах и Вене"></label>
       <div class="kv"><span class="muted">Размещение маршрута</span><span>бесплатно</span></div>
       <div class="kv"><span class="muted">Комиссия с брони</span><span>5 % или подписка водителя 9,99 €/мес</span></div>
@@ -620,10 +747,10 @@ function renderPublish(){
   $("#qA").onclick=()=>{p.pick="A";renderPublish()};$("#qB").onclick=()=>{p.pick="B";renderPublish()};
   $("#pf").onsubmit=e=>{e.preventDefault();
     if(!p.A||!p.B){toast("Отметьте на карте обе точки: откуда и куда");return}
-    const caps={},prices={};[["seat","cs","ps"],["parcel","cp","pp"],["car","cc","pc"]].forEach(([k,c,pr])=>{const v=+$("#"+c).value||0;if(v>0){caps[k]=v;prices[k]=+$("#"+pr).value||0}});
+    const caps={},prices={};[["seat","cs","ps"],["parcel","cp","pp"],["car","cc","pc"],["drive","cd","pdr"]].forEach(([k,c,pr])=>{const v=+$("#"+c).value||0;if(v>0){caps[k]=v;prices[k]=+$("#"+pr).value||0}});
     if(!Object.keys(caps).length){toast("Укажите, что можете взять: места, посылки или авто");return}
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
-    const r={id:"m"+Date.now(),from:p.A,to:p.B,at,driver:state.user.name,vehicle:$("#pv").value,caps,prices,rating:5,note:$("#pn").value,mine:true};
+    const pc=$("#pcar").value;const r={id:"m"+Date.now(),carrier:pc==="bus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.name,vehicle:pc==="drive"?"Без своей машины":$("#pv").value,caps,prices,rating:5,note:$("#pn").value,mine:true};
     state.routes.push(r);save();
     state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
@@ -646,17 +773,81 @@ function renderProfile(){
     <div class="card"><h2>Мои маршруты</h2>
       ${state.routes.filter(r=>r.mine).map(r=>`<div class="kv"><span>${esc(r.from.name)} → ${esc(r.to.name)}<br><span class="small muted">${when(r.at).txt}</span></span><span class="small">${Object.entries(r.caps).map(([k,v])=>v+" "+KINDS[k].unit).join(", ")}</span></div>`).join("")||`<p class="small muted">Едете сами? Опубликуйте маршрут во вкладке «Я еду».</p>`}
     </div>
+    <div class="card"><h2>Мои точки ожидания</h2>
+      ${state.requests.filter(q=>q.mine).map(q=>`<div class="kv"><span>${esc(q.from.name)} → ${esc(q.to.name)}<br><span class="small muted">${WANT[q.kind]} · ${when(q.at).txt}</span></span><button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button></div>`).join("")||`<p class="small muted">Не нашли транспорт? На карте нажмите «Поставить точку ожидания».</p>`}
+    </div>
+    <button class="btn ghost" id="reintro" type="button">Как пользоваться приложением</button>
     <button class="btn ghost" id="out" type="button">Выйти</button>
     <button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`;
   $$("#plans button").forEach(b=>b.onclick=()=>{state.plan=b.dataset.p;save();renderProfile();toast(state.plan==="sub"?"Подписка оформлена (демо)":"Выбран разовый сбор")});
+  $$("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
+  $("#reintro").onclick=()=>showIntro(0);
   $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
-  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
+  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
+}
+
+/* ---------- Ознакомление ---------- */
+const dotI=v=>`<i class="dot" style="background:var(${v});width:18px;height:18px"></i>`;
+const INTRO=[
+  {art:`${dotI("--dep")}${dotI("--arr")}`,h:"Карта поездок",p:"Зелёная точка: отсюда выезжают. Красная: сюда приезжают. Цифра показывает, сколько поездок. Нажмите на точку и увидите, кто едет и когда."},
+  {art:`<span class="pill">Пассажиры</span><span class="pill">Посылки</span><span class="pill">Трал</span><span class="pill">Перегон</span>`,h:"Что можно сделать",p:"Поехать попутчиком, передать посылку, перевезти машину на трале или найти человека, который сам пригонит вашу купленную машину."},
+  {art:`<span class="btn sm ghost">Написать</span><span class="btn sm">Забронировать</span>`,h:"Договоритесь в чате",p:"Нашли водителя? Нажмите «Написать» и договоритесь о цене и месте встречи. Потом нажмите «Забронировать»."},
+  {art:`<svg width="44" height="44" viewBox="0 0 44 44" class="wait"><circle class="ring" cx="22" cy="22" r="9"/><circle class="core" cx="22" cy="22" r="9"/></svg>`,h:"Никого не нашли?",p:"Поставьте оранжевую точку ожидания. Она мигает на карте, и водители, которые едут в вашу сторону, сами вам напишут."},
+  {art:`<span class="pill go">Я еду</span>`,h:"Едете сами?",p:"Во вкладке «Я еду» отметьте на карте, откуда и куда едете. Возьмите попутчиков или посылки и заработайте на дороге."}
+];
+function showIntro(i){
+  closeSheet();const st=INTRO[i],last=i===INTRO.length-1;
+  const s=document.createElement("div");s.className="scrim intro";
+  s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Как пользоваться">
+    <div class="intro-step"><p class="small muted">Шаг ${i+1} из ${INTRO.length}</p><div class="intro-art">${st.art}</div><h2>${st.h}</h2><p>${st.p}</p></div>
+    <div class="intro-dots">${INTRO.map((_,k)=>`<i class="${k===i?"on":""}"></i>`).join("")}</div>
+    <div class="row">${i>0?`<button class="btn ghost" id="ib" type="button">Назад</button>`:`<button class="btn ghost" id="isk" type="button">Пропустить</button>`}<button class="btn" id="in" type="button">${last?"Я всё понял":"Далее"}</button></div>
+  </div>`;
+  document.body.appendChild(s);
+  const done=()=>{state.seenIntro=true;save();closeSheet();if(last)toast("Отлично! Если забудете, нажмите «?» вверху")};
+  s.querySelector("#in").onclick=()=>last?done():showIntro(i+1);
+  if(s.querySelector("#ib"))s.querySelector("#ib").onclick=()=>showIntro(i-1);
+  if(s.querySelector("#isk"))s.querySelector("#isk").onclick=done;
+  s.querySelector("#in").focus();
+}
+
+/* ---------- Чат поддержки ---------- */
+const FAQ=[
+  [/оранж|ожидан|никого|не наш|нет транспорт/i,"Если никто не едет, откройте «Карта», укажите «Откуда» и «Куда» и нажмите «Не нашли транспорт? Поставить точку ожидания». На карте появится мигающая оранжевая точка, и водители вам напишут."],
+  [/зел|красн|точк/i,"Зелёные точки показывают, откуда выезжают, красные показывают, куда приезжают. Цифра в точке: сколько поездок. Нажмите на точку, и откроется список водителей."],
+  [/посыл|переда/i,"Чтобы отправить посылку, на карте выберите «Посылки», укажите свой город и город получателя. Нажмите «Написать» у ближайшего водителя и договоритесь, где передать коробку."],
+  [/перегон|пригна|купил/i,"Купили машину за границей? Выберите «Перегон»: это люди, которые едут туда без своей машины и могут пригнать вашу. Понадобятся доверенность, страховка Green Card и документы на машину."],
+  [/трал|эвакуат/i,"Выберите «Трал», чтобы найти перевозчика с автовозом или эвакуатором. Укажите, откуда забрать машину, и забронируйте место на погрузку."],
+  [/цен|плат|деньг|сбор|подпис|стоит/i,"Цену с водителем вы согласуете в чате. Приложение берёт сервисный сбор 2 € за бронь или подписку 4,99 € в месяц. Водители размещают маршруты бесплатно."],
+  [/опублик|водител|я еду|свою машин|заработ/i,"Если едете сами, откройте вкладку «Я еду», отметьте на карте откуда и куда, укажите свободные места, посылки или трал и нажмите «Опубликовать маршрут»."],
+  [/брон/i,"Нажмите «Забронировать» у поездки, выберите, что нужно, и оплатите сервисный сбор. Водитель сразу напишет вам в чат."],
+  [/чат|написа/i,"Нажмите «Написать» у любой поездки или у оранжевой точки. Все переписки лежат во вкладке «Чаты»."],
+  [/поезд|ехать|место|попут/i,"Чтобы найти попутку, на карте укажите «Откуда» и «Куда». Ниже появится список ближайших выездов. Нажмите «Написать», договоритесь о цене и забронируйте место."]
+];
+const SUPPORT_Q=["Как найти попутку?","Как отправить посылку?","Что такое перегон?","Что значит оранжевая точка?","Сколько это стоит?"];
+function supportAnswer(v){const f=FAQ.find(([re])=>re.test(v));return f?f[1]:"Спасибо за вопрос! Я передам его оператору, он ответит здесь в течение дня. А пока можно ещё раз посмотреть короткое ознакомление: кнопка «?» вверху экрана."}
+function openSupport(){
+  const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  const draw=s=>{
+    s.querySelector(".sheet").innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span class="ava">?</span><div><b>Поддержка go-transfer-go</b><p class="small muted">Спросите, как пользоваться приложением</p></div></div>
+      <div class="chatlog" style="min-height:160px"><div class="msg">Здравствуйте! Я помогу разобраться с приложением. Выберите вопрос или напишите свой.</div>
+        ${state.support.map(m=>`<div class="msg ${m.me?"me":""}">${esc(m.text)}<time>${tm(m.t)}</time></div>`).join("")}</div>
+      <div class="chips">${SUPPORT_Q.map(q=>`<button type="button">${q}</button>`).join("")}</div>
+      <form class="searchrow" id="sf"><input id="si" autocomplete="off" placeholder="Ваш вопрос"><button class="btn sm" type="submit">Отправить</button></form>
+      <button class="btn ghost" id="sx" type="button">Закрыть</button>`;
+    const ask=v=>{state.support.push({me:true,text:v,t:Date.now()});state.support.push({me:false,text:supportAnswer(v),t:Date.now()});save();draw(s);const l=s.querySelector(".chatlog");s.querySelector(".sheet").scrollTop=l.scrollHeight};
+    s.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>ask(b.textContent));
+    s.querySelector("#sf").onsubmit=e=>{e.preventDefault();const v=s.querySelector("#si").value.trim();if(v)ask(v)};
+    s.querySelector("#sx").onclick=closeSheet;
+  };
+  sheet("",draw);
 }
 
 /* ---------- Каркас ---------- */
 function render(){
   closeSheet();
   if(curGL&&state.tab!=="map"&&state.tab!=="publish"){curGL.remove();curGL=null}
+  $("#fab").hidden=$("#helpintro").hidden=!state.user;
   if(!state.user)return renderAuth();
   if(!window.d3||!window.EU_MAP){view.innerHTML=`<div class="card empty">Не удалось загрузить карту. Проверьте интернет и обновите страницу.</div>`;return}
   $("#tabs").hidden=false;
@@ -665,7 +856,9 @@ function render(){
   updateBadge();
   ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile}[state.tab]||renderMap)();
   if(state.tab!=="chats")window.scrollTo(0,0);
+  if(!state.seenIntro)showIntro(0);
 }
+$("#fab").onclick=openSupport;$("#helpintro").onclick=()=>showIntro(0);
 $$("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;if(b.dataset.tab==="chats")state.openChat=null;save();render()});
 document.body.insertAdjacentHTML("beforeend",`<datalist id="cities">${cityNames.map(c=>`<option value="${c}">`).join("")}</datalist>`);
 probeRealMap();
