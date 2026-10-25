@@ -1,5 +1,9 @@
+<meta charset="utf-8">
 <title>go-transfer-go</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<!-- Защита: браузер грузит код, стили и данные только с перечисленных адресов (CSP) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://router.project-osrm.org https://nominatim.openstreetmap.org; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -242,18 +246,23 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
   </div></nav>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="eumap.js"></script>
 <script src="euroads.js"></script>
 <script src="eucities.js"></script>
 <script>
 (function(){
 const store={
-  get(k,d){try{const v=localStorage.getItem("gps4_"+k);return v?JSON.parse(v):d}catch(e){return d}},
+  get(k,d){try{const v=localStorage.getItem("gps4_"+k);if(!v)return d;const x=JSON.parse(v);return Array.isArray(d)&&!Array.isArray(x)||typeof d==="boolean"&&typeof x!=="boolean"?d:x}catch(e){return d}},
   set(k,v){try{localStorage.setItem("gps4_"+k,JSON.stringify(v))}catch(e){}}
 };
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const view=$("#view");
+/* Безопасность: картинки только как data:image, тексты с ограничением длины, файлы до 15 МБ */
+const safeImg=u=>typeof u==="string"&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(u)?u:"";
+const clip=(v,n)=>String(v==null?"":v).trim().slice(0,n);
+const MAX_FILE=15*1024*1024;
+const CAP_MAX={seat:60,parcel:5000,car:10,drive:3};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const eur=n=>(Math.round(n*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2})+" €";
 const H=36e5;
@@ -328,11 +337,11 @@ const lei=n=>n+" "+(n%10===1&&n%100!==11?"лей":n%10>=2&&n%10<=4&&(n%100<10||n
 let state={
   user:store.get("user",null),
   tab:store.get("tab","map"),
-  routes:store.get("routes",null)||seedRoutes,
+  routes:store.get("routes",[]).length?store.get("routes",[]):seedRoutes,
   chats:store.get("chats",[]),
   bookings:store.get("bookings",[]),
   maxp:null,
-  requests:store.get("requests",null)||seedReqs(),
+  requests:store.get("requests",[]).length?store.get("requests",[]):seedReqs(),
   seenIntro:store.get("seenIntro",false),
   support:store.get("support",[]),
   shared:store.get("shared",false),
@@ -372,7 +381,7 @@ function renderAuth(){
       <button class="btn ghost" id="demo" type="button">Войти без SMS (демо)</button>`;
     $("#demo").onclick=()=>{state.user={name:"Вова",phone:a.phone};save();render();toast("Вы вошли в демо-режиме")};
     $("#f").onsubmit=e=>{e.preventDefault();const p=$("#phone").value.trim();if(p.replace(/\D/g,"").length<8){toast("Проверьте номер: нужен код страны и номер");return}
-      a.phone=p;a.sent=String(Math.floor(1000+Math.random()*9000));a.step="code";render()};
+      a.phone=clip(p,30);a.sent=String(Math.floor(1000+Math.random()*9000));a.step="code";render()};
   }else if(a.step==="code"){
     view.innerHTML=`<h1>Введите код из SMS</h1>
       <p class="muted">Отправили на <span class="mono">${esc(a.phone)}</span>. <button class="btn ghost sm" id="back" type="button">Изменить</button></p>
@@ -387,7 +396,7 @@ function renderAuth(){
   }else{
     view.innerHTML=`<h1>Как вас зовут?</h1><p class="muted">Имя увидят водители и пассажиры в чате.</p>
       <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" value="Вова" required></label><button class="btn" type="submit">Готово</button></form>`;
-    $("#f").onsubmit=e=>{e.preventDefault();state.user={name:$("#name").value.trim()||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
+    $("#f").onsubmit=e=>{e.preventDefault();state.user={name:clip($("#name").value,60)||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
   }
 }
 
@@ -446,13 +455,15 @@ function drawPin(m,p,label,fill){
 }
 
 /* Подробная карта: OpenStreetMap через MapLibre и OpenFreeMap. Включается, если сервисы доступны; иначе встроенная схема */
-const GL={on:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1"};
+const GL={on:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1",
+  /* Отпечатки файлов MapLibre 4.7.1: если CDN подменит файл, браузер его не запустит */
+  js:"sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj",css:"sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V"};
 let curGL=null;
 function probeRealMap(){
   const ctl=new AbortController();setTimeout(()=>ctl.abort(),5000);
   fetch(GL.style,{signal:ctl.signal}).then(r=>{if(!r.ok)throw 0;
-    const l=document.createElement("link");l.rel="stylesheet";l.href=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.css`;document.head.appendChild(l);
-    const sc=document.createElement("script");sc.src=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.js`;
+    const l=document.createElement("link");l.rel="stylesheet";l.href=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.css`;l.integrity=GL.css;l.crossOrigin="anonymous";document.head.appendChild(l);
+    const sc=document.createElement("script");sc.src=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.js`;sc.integrity=GL.js;sc.crossOrigin="anonymous";
     sc.onload=()=>{if(!window.maplibregl)return;GL.on=true;if(state.user&&(state.tab==="map"||state.tab==="publish"))render()};
     document.head.appendChild(sc);
   }).catch(()=>{});
@@ -711,7 +722,7 @@ function newWaitSheet(){
     <button class="btn ghost" id="wcl" type="button">Отмена</button>`,s=>{
     s.querySelector("#wcl").onclick=closeSheet;
     s.querySelector("#wok").onclick=()=>{
-      state.requests.push({id:"q"+Date.now(),from:A,to:B,at:new Date(s.querySelector("#wd").value+"T09:00").getTime(),name:state.user.name,people:+s.querySelector("#wp").value||1,kind:s.querySelector("#wk").value,note:s.querySelector("#wn").value,mine:true});
+      state.requests.push({id:"q"+Date.now(),from:A,to:B,at:new Date(s.querySelector("#wd").value+"T09:00").getTime(),name:state.user.name,people:Math.min(9,Math.max(1,Math.round(+s.querySelector("#wp").value)||1)),kind:WANT[s.querySelector("#wk").value]?s.querySelector("#wk").value:"seat",note:clip(s.querySelector("#wn").value,300),mine:true});
       save();closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap();
     };
   });
@@ -727,7 +738,7 @@ function offerCard(r){
     <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
     <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
     <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${nameBtn(r.driver)} ${ratingTxt(person(r.driver))} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
-    ${r.photo?`<img class="vphoto" src="${r.photo}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
+    ${safeImg(r.photo)?`<img class="vphoto" src="${safeImg(r.photo)}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
     <div class="caps"><span class="pill ${isBus(r)?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
     <div class="roadinfo"></div>
     <div class="acts">${mine?`<span class="pill ok">Ваш маршрут, ждите сообщений</span>`:`<button class="btn ghost sm" data-chat="${r.id}">Написать</button><button class="btn sm" data-book="${r.id}">Забронировать</button>`}</div>
@@ -807,7 +818,7 @@ function renderChat(c){
   c.draft="";
   $("#bk").onclick=()=>{state.openChat=null;renderChats()};
   if($("#bkr"))$("#bkr").onclick=()=>bookSheet(r.id);
-  $("#cf").onsubmit=e=>{e.preventDefault();const v=$("#ci").value.trim();if(!v)return;c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
+  $("#cf").onsubmit=e=>{e.preventDefault();const v=clip($("#ci").value,1000);if(!v)return;c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
     const k=r?mainKind(r):"seat";const pool=c.req?REPLIES.req:/пригна|перегон/i.test(v)?REPLIES.drive:/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
     const n=c.msgs.filter(m=>!m.me).length;
     setTimeout(()=>{c.msgs.push({me:false,text:pool[n%pool.length],t:Date.now()});if(state.openChat===c.id&&state.tab==="chats")renderChat(c);else{c.unread=(c.unread||0)+1;updateBadge()}save()},1400)};
@@ -867,6 +878,7 @@ function renderPublish(){
   $$("#pvt button").forEach(b=>b.onclick=()=>{p.vt=b.dataset.v;renderPublish()});
   $("#pphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file)return;
     if(!/^image\//.test(file.type)){toast("Выберите файл с фотографией");return}
+    if(file.size>MAX_FILE){toast("Фото слишком большое, нужно до 15 МБ");return}
     const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,640/Math.max(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);p.photo=c.toDataURL("image/jpeg",.78);renderPublish();toast("Фото добавлено")};im.onerror=()=>toast("Не получилось открыть фото, попробуйте другое");im.src=rd.result};rd.readAsDataURL(file)};
   if($("#pphotodel"))$("#pphotodel").onclick=()=>{p.photo=null;renderPublish()};
   $("#pmeet").onclick=()=>{if(!p.A){toast("Сначала выберите, откуда выезжаете");p.pick="A";renderPublish();return}p.pick="M";renderPublish();$("#pm").scrollIntoView({behavior:"smooth",block:"center"})};
@@ -877,15 +889,18 @@ function renderPublish(){
     if(!p.A||!p.B){toast("Отметьте на карте обе точки: откуда и куда");return}
     const caps={},prices={};let bad=null;
     for(const [k,c,pr,need,what] of [["seat","cs","ps","Впишите цену за место","Укажите, сколько свободных мест"],["parcel","cp","pp","Впишите цену за кг","Укажите, сколько кг посылок возьмёте"],["car","cc","pc","Впишите цену за авто на трале","Укажите, сколько авто возьмёте на трал"],["drive","cd","pdr","Впишите цену за перегон","Укажите, сколько авто пригоните"]]){
-      const cv=$("#"+c).value.trim(),pv=$("#"+pr).value.trim(),v=+cv||0;
+      const cv=$("#"+c).value.trim(),pv=$("#"+pr).value.trim(),v=Math.floor(+cv)||0;
+      if(v>CAP_MAX[k]){bad=["Проверьте число: слишком большое значение",c];break}
+      if(+pv>100000){bad=["Проверьте цену: слишком большое значение",pr];break}
       if(v>0&&(pv===""||+pv<0)){bad=[need,pr];break}
       if(v<=0&&pv!==""){bad=[what,c];break}
       if(v>0){caps[k]=v;prices[k]=+pv}}
     if(bad){toast(bad[0]);$("#"+bad[1]).focus();return}
     if(!Object.keys(caps).length){toast("Укажите, что можете взять, и впишите свою цену");$("#cs").focus();return}
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
-    const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:$("#pcity").value.trim()||p.A.name,street:$("#pstreet").value.trim(),lat:mp.lat,lon:mp.lon};
-    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?($("#pv").value.trim()||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:$("#pn").value,mine:true};
+    if(!Number.isFinite(at)||at<Date.now()-H){toast("Проверьте дату и время выезда");$("#pd").focus();return}
+    const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:clip($("#pcity").value,80)||p.A.name,street:clip($("#pstreet").value,120),lat:mp.lat,lon:mp.lon};
+    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?(clip($("#pv").value,80)||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:clip($("#pn").value,300),mine:true};
     state.routes.push(r);save();
     state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
@@ -897,7 +912,7 @@ function renderProfile(){
   const bs=state.bookings;
   view.innerHTML=`<h1>${esc(state.user.name)}</h1>
     <p class="muted mono">${esc(state.user.phone)}</p>
-    <div class="card"><div style="display:flex;gap:12px;align-items:center"><span class="ava big">${state.user.photo?`<img src="${state.user.photo}" alt="Ваше фото">`:esc(state.user.name[0])}</span>
+    <div class="card"><div style="display:flex;gap:12px;align-items:center"><span class="ava big">${safeImg(state.user.photo)?`<img src="${safeImg(state.user.photo)}" alt="Ваше фото">`:esc(state.user.name[0])}</span>
         <div><h2>Мой профиль ${state.user.docs?vbadge:""}</h2><p class="small muted">${ratingTxt(person(state.user.name))}</p></div></div>
       <div class="trust"><span><b class="y">✓</b>Номер телефона подтверждён</span>
         <span><b class="${state.user.photo?"y":"n"}">${state.user.photo?"✓":"–"}</b>Фото профиля <label class="btn ghost sm filebtn" for="uphoto" style="margin-left:auto">${state.user.photo?"Заменить":"Добавить"}<input id="uphoto" type="file" accept="image/*"></label></span>
@@ -941,11 +956,11 @@ function renderProfile(){
     if(state.user.ltype==="company"){const g=id=>$("#"+id).value.trim();const em=g("uemail");
       if(!g("ucname")){toast("Укажите название компании");return}
       if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("Проверьте e-mail: в нём должны быть @ и точка");return}
-      Object.assign(state.user,{cname:g("ucname"),idno:g("uidno"),cphone:g("ucphone"),cphone2:g("ucphone2"),fax:g("ufax"),email:em})}
+      Object.assign(state.user,{cname:clip(g("ucname"),100),idno:clip(g("uidno"),20),cphone:clip(g("ucphone"),30),cphone2:clip(g("ucphone2"),30),fax:clip(g("ufax"),30),email:clip(em,120)})}
     state.user.ig=ig;state.user.fb=fb;save();renderProfile();doneSheet("Отлично! Ваш профиль изменён!","Теперь попутчики увидят обновлённые данные.")};
   $$("#ltype button").forEach(x=>x.onclick=()=>{state.user.ltype=x.dataset.l;save();renderProfile()});
-  $("#uphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file||!/^image\//.test(file.type))return;
-    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();toast("Фото профиля добавлено")};im.src=rd.result};rd.readAsDataURL(file)};
+  $("#uphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file||!/^image\//.test(file.type))return;if(file.size>MAX_FILE){toast("Фото слишком большое, нужно до 15 МБ");return}
+    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();toast("Фото профиля добавлено")};im.onerror=()=>toast("Не получилось открыть фото, попробуйте другое");im.src=rd.result};rd.readAsDataURL(file)};
   $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
   $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;state.reviews=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
 }
@@ -1001,7 +1016,7 @@ function openSupport(){
       <button class="btn ghost" id="sx" type="button">Закрыть</button>`;
     const ask=v=>{state.support.push({me:true,text:v,t:Date.now()});state.support.push({me:false,text:supportAnswer(v),t:Date.now()});save();draw(s);const l=s.querySelector(".chatlog");s.querySelector(".sheet").scrollTop=l.scrollHeight};
     s.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>ask(b.textContent));
-    s.querySelector("#sf").onsubmit=e=>{e.preventDefault();const v=s.querySelector("#si").value.trim();if(v)ask(v)};
+    s.querySelector("#sf").onsubmit=e=>{e.preventDefault();const v=clip(s.querySelector("#si").value,500);if(v)ask(v)};
     s.querySelector("#sx").onclick=closeSheet;
   };
   sheet("",draw);
@@ -1029,14 +1044,14 @@ const ratingTxt=P=>P.rating?`★${P.rating.toFixed(1)} (${P.reviews.length})`:"�
 const nameBtn=n=>{const P=person(n);return `<button class="linkbtn" type="button" data-person="${esc(n)}">${esc(n)}</button> ${P.company?cbadge:""}${P.verified?vbadge:""}`};
 const okUrl=(u,host)=>{try{const x=new URL(u);return x.protocol==="https:"&&(x.hostname===host||x.hostname.endsWith("."+host))}catch(e){return false}};
 function socialBtns(P){
-  const one=(v,label,host)=>!v?"":v==="demo"?`<button type="button" data-demo-social="${label}">${label}</button>`:okUrl(v,host)?`<a href="${esc(v)}" target="_blank" rel="noopener">${label}</a>`:"";
+  const one=(v,label,host)=>!v?"":v==="demo"?`<button type="button" data-demo-social="${label}">${label}</button>`:okUrl(v,host)?`<a href="${esc(v)}" target="_blank" rel="noopener noreferrer">${label}</a>`:"";
   return one(P.ig,"Instagram","instagram.com")+one(P.fb,"Facebook","facebook.com");
 }
 function personSheet(name){
   const P=person(name),tm=t=>new Date(t).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
   const row=(ok,t)=>`<span><b class="${ok?"y":"n"}">${ok?"✓":"–"}</b>${t}</span>`;
   const soc=socialBtns(P);
-  sheet(`<div style="display:flex;gap:12px;align-items:center"><span class="ava big">${P.photo?`<img src="${P.photo}" alt="">`:esc(name[0])}</span>
+  sheet(`<div style="display:flex;gap:12px;align-items:center"><span class="ava big">${safeImg(P.photo)?`<img src="${safeImg(P.photo)}" alt="">`:esc(name[0])}</span>
       <div style="min-width:0"><h2>${esc(name)} ${P.company?cbadge:""}${P.verified?vbadge:""}</h2><p class="small muted">${ratingTxt(P)} · ${P.trips} поездок · в приложении с ${P.since} года</p></div></div>
     <div class="trust">${row(P.phone,"Номер телефона подтверждён")}${row(P.docs,P.docs?"Документы проверены":"Документы ещё не проверены")}${row(!!soc,soc?"Есть ссылки на соцсети":"Соцсети не указаны")}</div>
     ${P.company?`<div class="card"><h2>Контакты компании</h2>
@@ -1062,7 +1077,7 @@ function reviewSheet(b){
     <button class="btn" id="rvok" type="button">Отправить отзыв</button><button class="btn ghost" id="rvx" type="button">Отмена</button>`;
     s.querySelectorAll("[data-st]").forEach(x=>x.onclick=()=>{const t=s.querySelector("#rvt").value;stars=+x.dataset.st;draw(s);s.querySelector("#rvt").value=t});
     s.querySelector("#rvx").onclick=closeSheet;
-    s.querySelector("#rvok").onclick=()=>{const t=s.querySelector("#rvt").value.trim();if(!t){toast("Напишите пару слов о поездке");return}
+    s.querySelector("#rvok").onclick=()=>{const t=clip(s.querySelector("#rvt").value,1000);if(!t){toast("Напишите пару слов о поездке");return}
       state.reviews.push({to:b.driver,who:state.user.name,stars,text:t,t:Date.now()});b.reviewed=true;save();closeSheet();toast("Спасибо за отзыв!");renderProfile()};
   };
   sheet("",draw);
@@ -1094,7 +1109,7 @@ async function shareApp(){
   const links=[["WhatsApp",`https://wa.me/?text=${tu}`],["Telegram",`https://t.me/share/url?url=${u}&text=${t}`],["Facebook",`https://www.facebook.com/sharer/sharer.php?u=${u}`],["Одноклассники",`https://connect.ok.ru/offer?url=${u}&title=${t}`],["ВКонтакте",`https://vk.com/share.php?url=${u}&title=${t}`],["Viber",`viber://forward?text=${tu}`]];
   sheet(`<h2>Поделиться go-transfer-go</h2>
     <p class="small muted">Выберите, где поделиться. Можно отправить другу или выложить у себя на странице.</p>
-    <div class="sharegrid">${links.map(([n,h])=>`<a href="${h}" target="_blank" rel="noopener">${n}</a>`).join("")}</div>
+    <div class="sharegrid">${links.map(([n,h])=>`<a href="${h}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")}</div>
     <p class="small muted">Или скопируйте ссылку и вставьте куда угодно, например в Instagram:</p>
     <div class="sharelink"><input id="shl" readonly value="${esc(url)}" aria-label="Ссылка на приложение"><button class="btn sm" id="shc" type="button">Копировать</button></div>
     <button class="btn ghost" id="shx" type="button">Закрыть</button>`,s=>{
@@ -1109,6 +1124,8 @@ function rerenderShare(){$$(".sharecard").forEach(c=>{c.outerHTML=shareCard()});
 function bindShare(){$$("[data-share]").forEach(b=>b.onclick=shareApp)}
 
 /* ---------- Каркас ---------- */
+/* Безопасность: любое текстовое поле получает предел длины, чтобы не забить память огромным текстом */
+new MutationObserver(()=>$$("input:not([maxlength]):not([type=file]):not([type=number]):not([type=date]):not([type=time]),textarea:not([maxlength])").forEach(el=>el.maxLength=el.tagName==="TEXTAREA"?1000:200)).observe(document.body,{childList:true,subtree:true});
 function render(){
   closeSheet();
   if(curGL&&state.tab!=="map"&&state.tab!=="publish"){curGL.remove();curGL=null}
