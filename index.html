@@ -108,8 +108,11 @@ svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
 .intro-dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
 .intro-dots i.on{background:var(--accent);width:22px;border-radius:4px}
 .sheet>*{flex:none}
-#kinds{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-#kinds button{flex:none}
+#kinds,.hscroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+#kinds button,.hscroll button{flex:none}
+#vts button{font-size:12.5px;padding:6px 10px;border-radius:99px}
+.vtgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.vtgrid button{justify-content:flex-start;padding:10px 12px;font-size:14px}
 .sharecard{background:var(--road);color:var(--road-ink);border-color:var(--road)}
 .sharecard h2{font:700 17px/1.25 var(--f-display)}
 .sharecard p{opacity:.85}
@@ -117,6 +120,11 @@ svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
 .sharegrid a,.sharegrid button{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);text-decoration:none;font:600 14px var(--f-body);cursor:pointer}
 .sharelink{display:flex;gap:8px}
 .sharelink input{flex:1;min-width:0;font:13px var(--f-mono)}
+.vphoto{grid-column:1/3;width:100%;max-height:190px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.photobox{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.photobox img{width:120px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips button{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:99px;padding:6px 10px;cursor:pointer}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
@@ -211,8 +219,8 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
 <script>
 (function(){
 const store={
-  get(k,d){try{const v=localStorage.getItem("gps3_"+k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){try{localStorage.setItem("gps3_"+k,JSON.stringify(v))}catch(e){}}
+  get(k,d){try{const v=localStorage.getItem("gps4_"+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem("gps4_"+k,JSON.stringify(v))}catch(e){}}
 };
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const view=$("#view");
@@ -266,8 +274,15 @@ const seedRoutes=[
   R("d1","Цюрих","Кишинёв",40,"Алексей","Без своей машины",{drive:1},{drive:250},4.9,"Буду в Цюрихе 26 октября. Пригоню вашу машину в Кишинёв, права категории B, стаж 12 лет."),
   R("d2","Мюнхен","Бельцы",60,"Сергиу","Без своей машины",{drive:1},{drive:220},4.8,"Еду в Мюнхен на автобусе, обратно могу пригнать машину."),
   R("d3","Милан","Кишинёв",30,"Олег","Без своей машины",{drive:1},{drive:230},5.0,"Перегоняю машины 5 лет. Нужны доверенность и Green Card."),
-  R("d4","Женева","Кишинёв",70,"Марин","Без своей машины",{drive:1},{drive:260},4.7,"")
+  R("d4","Женева","Кишинёв",70,"Марин","Без своей машины",{drive:1},{drive:260},4.7,""),
+  R("p1","Рим","Кишинёв",18,"Ирина","Рейс Рим – Кишинёв",{parcel:5},{parcel:6},4.9,"Лечу завтра, возьму документы или маленькую посылку до 5 кг."),
+  R("m1","Мюнхен","Кишинёв",36,"Артём","BMW R 1250 GS",{seat:1},{seat:90},4.8,"Возьму одного пассажира, шлем дам."),
+  R("t1","Франкфурт","Кишинёв",28,"Валерий","MAN, тент 20 т",{parcel:2000},{parcel:.6},4.7,"Беру крупные грузы: мебель, паллеты, технику.")
 ];
+const VT_OF={r1:"car",r2:"minibus",r3:"minibus",r4:"minibus",r5:"minibus",r6:"minibus",r7:"trailer",r8:"trailer",r9:"tow",r10:"car",r11:"minibus",r12:"car",r13:"minibus",r14:"minibus",r15:"bus",r16:"car",r17:"car",r18:"minibus",p1:"plane",m1:"moto",t1:"truck"};
+seedRoutes.forEach(r=>{if(VT_OF[r.id])r.vt=VT_OF[r.id]});
+const MEET_OF={r1:["Кишинёв","ул. Каля Мошилор, 2/1, Северный автовокзал"],r3:["Милан","Piazza Duca d'Aosta, у вокзала Milano Centrale"],r15:["Кишинёв","ул. Влайку Пыркэлаб, 70, Центральный автовокзал"],r16:["Кишинёв","бул. Дачия, 47, парковка у Malldova"],r17:["Париж","Porte Maillot, парковка у Palais des Congrès"]};
+seedRoutes.forEach(r=>{const m=MEET_OF[r.id];if(m)r.meet={city:m[0],street:m[1],lat:r.from.lat,lon:r.from.lon}});
 
 /* Запросы «ищу транспорт» (оранжевые точки ожидания) */
 const WANT={seat:"Ищу место",parcel:"Ищу, кто возьмёт посылку",car:"Ищу трал для машины",drive:"Ищу, кто пригонит машину"};
@@ -295,7 +310,8 @@ let state={
   shared:store.get("shared",false),
   kind:"all",
   A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
-  pub:{kind:"seat",A:null,B:null,pick:"A"},
+  pub:{kind:"seat",A:null,B:null,pick:"A",vt:"car"},
+  vt:"all",
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
@@ -370,7 +386,7 @@ function buildMap(box,opts){
   });
   const lp=g.append("g"), ll=g.append("g");
   let k=1;
-  const zoom=d3.zoom().scaleExtent([1,12]).translateExtent([[-W*.5,-Hh*.5],[W*1.5,Hh*1.5]]).on("zoom",e=>{g.attr("transform",e.transform);k=e.transform.k;g.selectAll(".scl").attr("r",function(){return +this.dataset.r/k});
+  const zoom=d3.zoom().scaleExtent([1,40]).translateExtent([[-W*.5,-Hh*.5],[W*1.5,Hh*1.5]]).on("zoom",e=>{g.attr("transform",e.transform);k=e.transform.k;g.selectAll(".scl").attr("r",function(){return +this.dataset.r/k});
     g.selectAll("text[data-x]").each(function(){const d=this.dataset;this.style.fontSize=(+(d.fs||11))/k+"px";this.style.strokeWidth=(d.fs?2.5:3)/k+"px";this.setAttribute("x",+d.x+(+(d.dx||10))/k);this.setAttribute("y",+d.y+(+(d.dy||-8))/k)});
     g.selectAll(".sclg").attr("transform",function(){return `translate(${this.dataset.x},${this.dataset.y}) scale(${1/k})`});
     svg.classed("z1",k>=1.7).classed("z2",k>=3).classed("z3",k>=5)});
@@ -378,15 +394,18 @@ function buildMap(box,opts){
   svg.on("click",e=>{if(e.defaultPrevented)return;const [x,y]=d3.zoomTransform(svg.node()).invert(d3.pointer(e));const ll_=proj.invert([x,y]);opts.onPick&&opts.onPick(ll_[1],ll_[0])});
   const xy=p=>proj([p.lon,p.lat]);
   return {svg,g,lr,lp,ll,xy,zoom,get k(){return k},zoomBy:f=>svg.transition().duration(250).call(zoom.scaleBy,f),
-    focus(points){if(!points.length)return;const pts=points.map(xy);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+    focus(points,mz){if(!points.length)return;const pts=points.map(xy);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
       const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
-      const s=Math.min(8,0.6/Math.max((x1-x0)/W,(y1-y0)/Hh,0.08));
+      const s=Math.min(mz?30:8,0.6/Math.max((x1-x0)/W,(y1-y0)/Hh,0.08));
       svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity.translate(W/2,Hh/2).scale(s).translate(-(x0+x1)/2-(x1-x0)*0.06,-(y0+y1)/2))}};
 }
 function arcPath(m,a,b){const p=m.xy(a),q=m.xy(b);const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,dx=q[0]-p[0],dy=q[1]-p[1];const c=[mx-dy*.18,my+dx*.18];return `M${p[0]},${p[1]}Q${c[0]},${c[1]} ${q[0]},${q[1]}`}
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function mainKind(r){return r.caps.car?"car":r.caps.drive?"drive":r.caps.seat?"seat":"parcel"}
-const carrierName=r=>r.carrier==="bus"?"Автобус / маршрутка":r.caps.drive?"Едет без машины":"Частный водитель";
+const VT={car:{t:"Личный автомобиль",s:"Личный авто",ph:"Toyota Corolla, 4 места"},bus:{t:"Маршрутный автобус",s:"Автобус",ph:"Setra, 50 мест"},minibus:{t:"Маршрутный микроавтобус",s:"Микроавтобус",ph:"Mercedes Sprinter, 18 мест"},
+  tow:{t:"Эвакуатор",s:"Эвакуатор",ph:"Эвакуатор-платформа, 1 авто"},trailer:{t:"Трал",s:"Трал",ph:"Трал на 2 машины"},truck:{t:"Грузовик",s:"Грузовик",ph:"MAN, тент 20 т"},moto:{t:"Мотоцикл",s:"Мотоцикл",ph:"Honda Africa Twin"},plane:{t:"Самолёт",s:"Самолёт",ph:"Рейс Милан – Кишинёв"}};
+const isBus=r=>r.vt==="bus"||r.vt==="minibus";
+const carrierName=r=>r.vt&&VT[r.vt]?VT[r.vt].t:r.caps.drive?"Едет без машины, пригонит вашу":"Частный водитель";
 function hubPoints(list){const m={};
   const add=(p,t,r)=>{const key=t+":"+p.name;const h=m[key]||(m[key]={t,name:p.name,lat:p.lat,lon:p.lon,n:0});h.n++};
   list.forEach(r=>{add(r.from,"dep",r);add(r.to,"arr",r)});
@@ -452,7 +471,7 @@ function glMap(box,opts){
     pin(p,label,color){const d=document.createElement("div");d.className="glpin";d.innerHTML=`<i style="background:${color}"></i><span>${esc(label)}</span>`;new maplibregl.Marker({element:d,anchor:"left",offset:[-8,0]}).setLngLat([p.lon,p.lat]).addTo(map)},
     line(a,b,col){ready(()=>set("draft",{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:arcCoords(a,b)}},[{id:"draft",type:"line",paint:{"line-color":col,"line-width":4,"line-dasharray":[2,1.5]}}]))},
     road(geo){ready(()=>set("road",geo?{type:"Feature",properties:{},geometry:geo}:fc([]),[{id:"road",type:"line",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":css("--accent"),"line-width":5,"line-opacity":.95}}]))},
-    focus(points){ready(()=>{const b=new maplibregl.LngLatBounds();points.forEach(p=>b.extend([p.lon,p.lat]));map.fitBounds(b,{padding:{top:60,bottom:40,left:50,right:110},maxZoom:9,duration:500})})},
+    focus(points,mz){ready(()=>{const b=new maplibregl.LngLatBounds();points.forEach(p=>b.extend([p.lon,p.lat]));map.fitBounds(b,{padding:{top:60,bottom:40,left:50,right:110},maxZoom:mz||9,duration:500})})},
     zoomBy(f){map.easeTo({zoom:map.getZoom()+Math.log2(f),duration:250})}
   };
   return api;
@@ -497,6 +516,8 @@ async function roadRoute(r){
 }
 async function revGeo(lat,lon){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ru`)).json();
   const a=j.address||{},n=a.city||a.town||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}}
+async function revStreet(lat,lon){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
+  const a=j.address||{};return {city:a.city||a.town||a.village||"",street:[a.road||a.pedestrian||a.square,a.house_number].filter(Boolean).join(", ")}}catch(e){return null}}
 function setPlace(obj,p,rer){const k=obj.pick||"A";obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
 function setPoint(obj,lat,lon,rer){
   const n=nearestCity(lat,lon),snap=GL.on?25:120,k=obj.pick;
@@ -513,6 +534,7 @@ function bindSearch(obj,rer){const f=$("#sq");if(!f)return;f.onsubmit=async e=>{
 
 function matches(r){
   if(state.kind!=="all"&&!(r.caps[state.kind]>0))return false;
+  if(state.vt!=="all"&&r.vt!==state.vt)return false;
   if(state.A&&dist([state.A.lat,state.A.lon],[r.from.lat,r.from.lon])>300)return false;
   if(state.B&&dist([state.B.lat,state.B.lon],[r.to.lat,r.to.lon])>300)return false;
   return r.at>Date.now()-H;
@@ -524,6 +546,7 @@ function renderMap(){
       <button class="pick" id="pA" aria-pressed="${state.pick==="A"}"><small>Откуда</small><span>${state.A?esc(state.A.name):"Любой город"}</span></button>
       <button class="pick" id="pB" aria-pressed="${state.pick==="B"}"><small>Куда</small><span>${state.B?esc(state.B.name):"Любой город"}</span></button>
     </div>
+    <div class="seg hscroll" id="vts" aria-label="Вид транспорта">${[["all","Любой транспорт"],...Object.entries(VT).map(([k,v])=>[k,v.s])].map(([k,t])=>`<button type="button" data-v="${k}" aria-pressed="${state.vt===k}">${t}</button>`).join("")}</div>
     <div class="seg" id="kinds">${kinds.map(([k,t,c])=>`<button type="button" data-k="${k}" aria-pressed="${state.kind===k}">${c?`<i class="dot" style="background:var(${c})"></i>`:""}${t}</button>`).join("")}</div>
     ${searchForm(state)}
     <div class="mapbox ${state.pick?"picking":""}" id="mb">
@@ -555,8 +578,9 @@ function renderMap(){
   $("#pA").onclick=()=>{state.pick=state.pick==="A"?null:"A";renderMap()};
   $("#pB").onclick=()=>{state.pick=state.pick==="B"?null:"B";renderMap()};
   $$("#kinds button").forEach(b=>b.onclick=()=>{state.kind=b.dataset.k;state.sel=null;renderMap()});
+  $$("#vts button").forEach(b=>b.onclick=()=>{state.vt=b.dataset.v;state.sel=null;renderMap()});
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
-  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.sel=null;state.pick=null;renderMap()};
+  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.sel=null;state.pick=null;renderMap()};
 }
 function selectRoute(id){
   state.sel=id;mapCtx.select(id);
@@ -574,8 +598,8 @@ function citySheet(c,side){
   const inn=state.routes.filter(r=>live(r)&&near(r.to)).sort((a,b)=>a.at-b.at);
   side=side||(out.length||!inn.length?"out":"in");
   const list=side==="out"?out:inn;
-  const sum=a=>{const seats=a.reduce((x,r)=>x+(r.caps.seat||0),0),bus=a.filter(r=>r.carrier==="bus").length,pr=a.length-bus;
-    return [pr?pr+" частн.":"",bus?bus+" автобус.":"",seats?seats+" своб. мест":""].filter(Boolean).join(" · ")||"нет поездок"};
+  const sum=a=>{const seats=a.reduce((x,r)=>x+(r.caps.seat||0),0),by={};a.forEach(r=>{const n=r.vt?VT[r.vt].s:"Перегон";by[n]=(by[n]||0)+1});
+    return [...Object.entries(by).map(([n,c])=>n+": "+c),seats?seats+" своб. мест":""].filter(Boolean).join(" · ")||"нет поездок"};
   sheet(`<h2>${esc(c.name)}</h2>
     <div class="citysum"><button type="button" data-s="out" aria-pressed="${side==="out"}"><span class="small muted"><i class="dot" style="background:var(--dep)"></i> Выезжают отсюда</span><b>${out.length}</b><span class="small muted">${sum(out)}</span></button>
       <button type="button" data-s="in" aria-pressed="${side==="in"}"><span class="small muted"><i class="dot" style="background:var(--arr)"></i> Едут сюда</span><b>${inn.length}</b><span class="small muted">${sum(inn)}</span></button></div>
@@ -634,8 +658,9 @@ function offerCard(r){
   return `<div class="card offer${state.sel===r.id?" sel":""}" data-id="${r.id}">
     <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
     <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
-    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${esc(r.driver)} ★${r.rating.toFixed(1)} · ${esc(r.vehicle)}${r.note?`<br>${esc(r.note)}`:""}</div>
-    <div class="caps"><span class="pill ${r.carrier==="bus"?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
+    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${esc(r.driver)} ★${r.rating.toFixed(1)} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
+    ${r.photo?`<img class="vphoto" src="${r.photo}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
+    <div class="caps"><span class="pill ${isBus(r)?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
     <div class="roadinfo"></div>
     <div class="acts">${mine?`<span class="pill ok">Ваш маршрут, ждите сообщений</span>`:`<button class="btn ghost sm" data-chat="${r.id}">Написать</button><button class="btn sm" data-book="${r.id}">Забронировать</button>`}</div>
   </div>`;
@@ -724,6 +749,10 @@ function updateBadge(){const n=state.chats.reduce((s,c)=>s+(c.unread||0),0);cons
 /* ---------- Я еду: публикация ---------- */
 function renderPublish(){
   const p=state.pub;
+  const f0=$("#pf");if(f0){p.form={};f0.querySelectorAll("input:not([type=file])").forEach(i=>p.form[i.id]=i.value)}
+  p.form=p.form||{};
+  const cityOf=n=>n.replace(/^Точка у /,"").split(",")[0];
+  if(p.A&&p.cityFor!==p.A.name){p.form.pcity=cityOf(p.A.name);p.cityFor=p.A.name;if(p.M&&dist([p.M.lat,p.M.lon],[p.A.lat,p.A.lon])>80)p.M=null}
   view.innerHTML=`<h1>Я еду, могу взять</h1>
     <p class="muted">Отметьте на карте, откуда выезжаете и куда едете. Пассажиры и отправители увидят маршрут и напишут вам.</p>
     <div class="pickbar">
@@ -731,12 +760,20 @@ function renderPublish(){
       <button class="pick" id="qB" aria-pressed="${p.pick==="B"}"><small>Куда</small><span>${p.B?esc(p.B.name):"Нажмите на карту"}</span></button>
     </div>
     ${searchForm(p)}
-    <div class="mapbox picking" id="pm"><div class="mapbar"><span class="pill">${p.pick==="A"?"Нажмите точку отправления":p.pick==="B"?"Нажмите точку прибытия":"Маршрут отмечен"}</span></div>
+    <div class="mapbox picking" id="pm"><div class="mapbar"><span class="pill">${p.pick==="A"?"Нажмите точку отправления":p.pick==="B"?"Нажмите точку прибытия":p.pick==="M"?"Приблизьте и нажмите точное место встречи":"Маршрут отмечен"}</span></div>
       <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div></div>
     <form class="card" id="pf">
-      <div class="row"><label for="pd">Дата<input id="pd" type="date" required></label><label for="pt">Время<input id="pt" type="time" value="06:00" required></label></div>
-      <label for="pcar">Кто вы<select id="pcar"><option value="private">Частный водитель, еду на своей машине</option><option value="bus">Автобус или маршрутка</option><option value="drive">Еду без машины, могу пригнать чужую</option></select></label>
-      <label for="pv">Машина<input id="pv" value="Mercedes Vito, 8 мест" required></label>
+      <h2>Когда и откуда выезжаете</h2>
+      <div class="row"><label for="pd">Дата<input id="pd" type="date" required></label><label for="pt">Время выезда<input id="pt" type="time" value="06:00" step="900" required></label></div>
+      <div class="row"><label for="pcity">Город<input id="pcity" placeholder="Например: Кишинёв" required></label><label for="pstreet">Улица и дом<input id="pstreet" placeholder="ул. Измаил, 33"></label></div>
+      <button class="btn ghost sm" type="button" id="pmeet" style="align-self:flex-start">${p.M?"Изменить точку на карте":"Отметить точное место на карте"}</button>
+      <p class="small muted" id="pmeetinfo">${p.M?`Место встречи отмечено: <span class="mono">${p.M.lat.toFixed(5)}, ${p.M.lon.toFixed(5)}</span>`:"Пассажиры увидят точку на карте и придут прямо к ней."}</p>
+      <div><p class="small muted" style="margin-bottom:6px">На чём едете</p>
+        <div class="seg vtgrid" id="pvt">${Object.entries(VT).map(([k,v])=>`<button type="button" data-v="${k}" aria-pressed="${p.vt===k}">${v.t}</button>`).join("")}<button type="button" data-v="none" aria-pressed="${p.vt==="none"}">Без транспорта, пригоню чужую машину</button></div></div>
+      <div class="photobox" ${p.vt==="none"?"hidden":""}>${p.photo?`<img src="${p.photo}" alt="Фото вашего транспорта">`:""}
+        <label class="btn ghost sm filebtn" for="pphoto">${p.photo?"Заменить фото":"Загрузить фото транспорта"}<input id="pphoto" type="file" accept="image/*"></label>
+        ${p.photo?`<button class="btn ghost sm" type="button" id="pphotodel">Убрать</button>`:""}</div>
+      <label for="pv" id="pvl" ${p.vt==="none"?"hidden":""}>${p.vt==="plane"?"Рейс":"Транспорт"}<input id="pv" value="" placeholder="${p.vt!=="none"?VT[p.vt].ph:""}"></label>
       <p class="small muted">Что можете взять (оставьте 0, если не берёте)</p>
       <div class="row"><label for="cs">Свободных мест<input id="cs" type="number" min="0" max="20" value="4"></label><label for="ps">Цена за место, €<input id="ps" type="number" min="0" value="120"></label></div>
       <div class="row"><label for="cp">Посылки, до кг<input id="cp" type="number" min="0" value="100"></label><label for="pp">Цена за кг, €<input id="pp" type="number" min="0" step="0.1" value="1.2"></label></div>
@@ -748,10 +785,23 @@ function renderPublish(){
       <button class="btn" type="submit">Опубликовать маршрут</button>
     </form>`;
   const d=new Date(Date.now()+864e5);$("#pd").value=d.toISOString().slice(0,10);
-  const m=makeMap($("#pm"),{picking:()=>!!p.pick,onCity:c=>{if(p.pick)setPlace(p,c,renderPublish);else toast("Нажмите «Откуда» или «Куда», чтобы поменять точку")},onPick:(lat,lon)=>{if(p.pick)setPoint(p,lat,lon,renderPublish)}});
+  Object.entries(p.form).forEach(([id,v])=>{const el=document.getElementById(id);if(el&&el.closest("#pf"))el.value=v});
+  const setMeet=(lat,lon)=>{p.M={lat,lon};p.pick=null;renderPublish();
+    if(GL.on)revStreet(lat,lon).then(a=>{if(!a)return;const st=$("#pstreet"),ci=$("#pcity");if(st&&a.street){st.value=a.street;p.form.pstreet=a.street}if(ci&&a.city){ci.value=a.city;p.form.pcity=a.city}})};
+  const m=makeMap($("#pm"),{picking:()=>!!p.pick,
+    onCity:c=>{if(p.pick==="M")setMeet(c.lat,c.lon);else if(p.pick)setPlace(p,c,renderPublish);else toast("Нажмите «Откуда» или «Куда», чтобы поменять точку")},
+    onPick:(lat,lon)=>{if(p.pick==="M")setMeet(lat,lon);else if(p.pick)setPoint(p,lat,lon,renderPublish)}});
   if(p.A)m.pin(p.A,"А · "+p.A.name,css("--ink"));
   if(p.B)m.pin(p.B,"Б · "+p.B.name,css("--warn"));
-  if(p.A&&p.B){m.line(p.A,p.B,css("--accent"));m.focus([p.A,p.B])}
+  if(p.M)m.pin(p.M,"Место встречи",css("--dep"));
+  if(p.pick==="M"&&p.A)m.focus([p.M||p.A],15);
+  else if(p.A&&p.B){m.line(p.A,p.B,css("--accent"));m.focus([p.A,p.B])}
+  $$("#pvt button").forEach(b=>b.onclick=()=>{p.vt=b.dataset.v;renderPublish()});
+  $("#pphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file)return;
+    if(!/^image\//.test(file.type)){toast("Выберите файл с фотографией");return}
+    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,640/Math.max(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);p.photo=c.toDataURL("image/jpeg",.78);renderPublish();toast("Фото добавлено")};im.onerror=()=>toast("Не получилось открыть фото, попробуйте другое");im.src=rd.result};rd.readAsDataURL(file)};
+  if($("#pphotodel"))$("#pphotodel").onclick=()=>{p.photo=null;renderPublish()};
+  $("#pmeet").onclick=()=>{if(!p.A){toast("Сначала выберите, откуда выезжаете");p.pick="A";renderPublish();return}p.pick="M";renderPublish();$("#pm").scrollIntoView({behavior:"smooth",block:"center"})};
   bindSearch(p,renderPublish);
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
   $("#qA").onclick=()=>{p.pick="A";renderPublish()};$("#qB").onclick=()=>{p.pick="B";renderPublish()};
@@ -760,9 +810,10 @@ function renderPublish(){
     const caps={},prices={};[["seat","cs","ps"],["parcel","cp","pp"],["car","cc","pc"],["drive","cd","pdr"]].forEach(([k,c,pr])=>{const v=+$("#"+c).value||0;if(v>0){caps[k]=v;prices[k]=+$("#"+pr).value||0}});
     if(!Object.keys(caps).length){toast("Укажите, что можете взять: места, посылки или авто");return}
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
-    const pc=$("#pcar").value;const r={id:"m"+Date.now(),carrier:pc==="bus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.name,vehicle:pc==="drive"?"Без своей машины":$("#pv").value,caps,prices,rating:5,note:$("#pn").value,mine:true};
+    const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:$("#pcity").value.trim()||p.A.name,street:$("#pstreet").value.trim(),lat:mp.lat,lon:mp.lon};
+    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.name,vehicle:vt?($("#pv").value.trim()||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:$("#pn").value,mine:true};
     state.routes.push(r);save();
-    state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A"};
+    state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
   };
 }
