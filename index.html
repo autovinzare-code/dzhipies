@@ -164,6 +164,17 @@ textarea{min-height:80px;resize:vertical}
 .mapbar,.zoom{z-index:2}
 .searchrow{display:flex;gap:8px}
 .searchrow input{flex:1;min-width:0}
+.searchwrap{position:relative;display:flex;flex-direction:column;gap:6px}
+.sugg{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.sugg:empty{display:none}
+.sugg button{all:unset;cursor:pointer;padding:10px 12px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);font:500 14px var(--f-body);color:var(--ink)}
+.sugg button:first-child{border-top:0}
+.sugg button:hover,.sugg button:focus-visible{background:var(--soft)}
+.sugg small{color:var(--muted);font-weight:400}
+.pricef{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:8px;font:500 13px var(--f-body);text-align:left}
+.pricef input{width:110px}
+.done{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:8px 0}
+.done .big{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--ok);color:var(--surface);font:700 34px var(--f-body)}
 .roadinfo{grid-column:1/3;font-size:13px;color:var(--ink);font-weight:600}
 .roadinfo:empty{display:none}
 .zoom{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px}
@@ -234,6 +245,7 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="eumap.js"></script>
 <script src="euroads.js"></script>
+<script src="eucities.js"></script>
 <script>
 (function(){
 const store={
@@ -310,10 +322,8 @@ function seedReqs(){const Q=(id,from,to,inH,name,people,kind,note)=>({id,from:pl
     Q("q5","Рим","Кишинёв",30,"Елена",1,"parcel","Продукты и сладости, 8 кг."),Q("q6","Цюрих","Кишинёв",50,"Виорел",1,"car","Купил BMW X3, деньги продавцу переведены."),
     Q("q7","Кишинёв","Бухарест",30,"Дан",1,"seat","")]}
 function waitHubs(){const m={};state.requests.filter(q=>q.at>Date.now()-12*H).forEach(q=>{const k=q.from.name;const h=m[k]||(m[k]={t:"wait",name:k,lat:q.from.lat,lon:q.from.lon,n:0,people:0});h.n++;h.people+=q.people});return Object.values(m)}
-const PLANS={
-  pay:{t:"Разовый сбор",p:"2 € за бронь",fee:2},
-  sub:{t:"Подписка",p:"4,99 € в месяц",fee:0}
-};
+const FEE=1;
+const lei=n=>n+" "+(n%10===1&&n%100!==11?"лей":n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?"лея":"леев");
 
 let state={
   user:store.get("user",null),
@@ -321,7 +331,7 @@ let state={
   routes:store.get("routes",null)||seedRoutes,
   chats:store.get("chats",[]),
   bookings:store.get("bookings",[]),
-  plan:store.get("plan","pay"),
+  maxp:null,
   requests:store.get("requests",null)||seedReqs(),
   seenIntro:store.get("seenIntro",false),
   support:store.get("support",[]),
@@ -334,8 +344,9 @@ let state={
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
-const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared);store.set("reviews",state.reviews)};
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared);store.set("reviews",state.reviews)};
 
+function doneSheet(title,text){sheet(`<div class="done"><div class="big" aria-hidden="true">✓</div><h2>${esc(title)}</h2>${text?`<p class="small muted">${esc(text)}</p>`:""}</div><button class="btn" id="dok" type="button">Хорошо</button>`,s=>{s.querySelector("#dok").onclick=closeSheet;s.querySelector("#dok").focus()})}
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
   const d=new Date(t),hh=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
@@ -544,16 +555,52 @@ function setPoint(obj,lat,lon,rer){
   setPlace(obj,p,rer);
   if(GL.on&&n.d>=snap)revGeo(lat,lon).then(nm=>{if(nm&&obj[k]===p){p.name=nm;rer()}});
 }
-function searchForm(obj){return obj.pick?`<form class="searchrow" id="sq"><input id="q" list="cities" autocomplete="off" placeholder="${obj.pick==="A"?"Откуда: город или адрес":"Куда: город или адрес"}" aria-label="Поиск места"><button class="btn sm" type="submit">Найти</button></form>`:""}
-function bindSearch(obj,rer){const f=$("#sq");if(!f)return;f.onsubmit=async e=>{e.preventDefault();const v=$("#q").value.trim();if(!v)return;
-  const c=cityNames.find(n=>n.toLowerCase()===v.toLowerCase());if(c)return setPlace(obj,place(c),rer);
-  if(GL.on){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
-    if(j[0])return setPlace(obj,{name:j[0].display_name.split(",").slice(0,2).join(",").trim(),lat:+j[0].lat,lon:+j[0].lon},rer)}catch(e){}}
-  toast("Не нашли такое место. Отметьте точку на карте")}}
+function searchForm(obj){return obj.pick?`<form class="searchwrap" id="sq"><div class="searchrow"><input id="q" autocomplete="off" autocapitalize="words" placeholder="${obj.pick==="A"?"Откуда: впишите город":"Куда: впишите город"}" aria-label="${obj.pick==="A"?"Город отправления":"Город назначения"}" aria-autocomplete="list" aria-controls="sugg"><button class="btn sm" type="submit">Найти</button></div><div class="sugg" id="sugg" role="listbox" aria-label="Подходящие города"></div></form>`:""}
+const normTxt=s=>s.toLowerCase().replace(/ё/g,"е").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[-‐–—.,'’`()]/g," ").replace(/\s+/g," ").trim();
+const TRL={а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ж:"zh",з:"z",и:"i",й:"i",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",і:"i",ї:"i",є:"e",ґ:"g"};
+const latTxt=s=>[...s].map(c=>TRL[c]??c).join("");
+const CC_RU={MD:"Молдова",RO:"Румыния",UA:"Украина",IT:"Италия",DE:"Германия",FR:"Франция",ES:"Испания",PT:"Португалия",GB:"Великобритания",IE:"Ирландия",BE:"Бельгия",NL:"Нидерланды",LU:"Люксембург",CH:"Швейцария",AT:"Австрия",CZ:"Чехия",SK:"Словакия",PL:"Польша",HU:"Венгрия",BG:"Болгария",GR:"Греция",TR:"Турция",RS:"Сербия",HR:"Хорватия",SI:"Словения",BA:"Босния",ME:"Черногория",MK:"Сев. Македония",AL:"Албания",DK:"Дания",SE:"Швеция",NO:"Норвегия",FI:"Финляндия",EE:"Эстония",LV:"Латвия",LT:"Литва",BY:"Беларусь",RU:"Россия",CY:"Кипр",MT:"Мальта",IS:"Исландия",GE:"Грузия",AM:"Армения",AZ:"Азербайджан",KZ:"Казахстан"};
+let PLACE_IDX=null;
+function placeIdx(){if(PLACE_IDX)return PLACE_IDX;
+  const out=[],add=(name,alts,lat,lon,cc)=>{const n=normTxt(name);
+    const keys=new Set([n,latTxt(n)]);(alts||"").split("|").forEach(a=>{if(a){const k=normTxt(a);keys.add(k);keys.add(latTxt(k))}});
+    const ex=out.find(o=>{const d=dist([o.lat,o.lon],[lat,lon]);return d<6||(o.n===n||o.keys.includes(n))&&d<40});
+    if(ex){ex.keys=[...new Set([...ex.keys,...keys])];ex.cc=ex.cc||cc;return}
+    out.push({name,lat,lon,cc,n,keys:[...keys]})};
+  cityNames.forEach(c=>add(c,"",CITIES[c][0],CITIES[c][1],CITIES[c][2]));
+  (window.EU_CITIES||[]).forEach(([n,a,la,lo,cc])=>add(n,a,la,lo,cc));
+  (window.EU_PLACES||[]).forEach(([n,la,lo])=>add(n,"",la,lo,""));
+  return PLACE_IDX=out}
+function lev(a,b){if(Math.abs(a.length-b.length)>2)return 9;let p=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){const c=[i];for(let j=1;j<=b.length;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[b.length]}
+function findPlaces(q,max=8){const qn=normTxt(q);if(!qn)return[];const ql=latTxt(qn),tol=qn.length>=7?2:qn.length>=4?1:0;
+  const res=[];placeIdx().forEach((o,i)=>{let best=9;
+    for(const k of o.keys){for(const v of qn===ql?[qn]:[qn,ql]){
+      const sc=k===v?0:k.startsWith(v)?1:k.includes(" "+v)?2:v.length>=3&&k.includes(v)?3:tol&&lev(v,k.slice(0,Math.max(v.length,k.length)))<=tol?4:9;
+      if(sc<best)best=sc}}
+    if(best<9)res.push([best,i,o])});
+  res.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const good=res.filter(x=>x[0]<4);
+  return (good.length?good:res).slice(0,max).map(x=>x[2])}
+const placeLabel=o=>o.cc&&CC_RU[o.cc]?CC_RU[o.cc]:o.osm?"OpenStreetMap":"";
+async function osmFind(v){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
+  return j.map(x=>({name:x.display_name.split(",")[0].trim(),lat:+x.lat,lon:+x.lon,osm:true,cc:"",sub:x.display_name.split(",").slice(1,3).join(",").trim()}))}catch(e){return[]}}
+function bindSearch(obj,rer){const f=$("#sq");if(!f)return;const q=$("#q"),box=$("#sugg");let cur=[],tm=0,seq=0;
+  const pick=o=>setPlace(obj,{name:o.name,lat:o.lat,lon:o.lon},rer);
+  const draw=()=>{box.innerHTML=cur.map((o,i)=>`<button type="button" role="option" data-i="${i}"><span>${esc(o.name)}</span><small>${esc(o.sub||placeLabel(o))}</small></button>`).join("");
+    box.querySelectorAll("button").forEach(b=>b.onclick=()=>pick(cur[+b.dataset.i]))};
+  q.oninput=()=>{const v=q.value.trim();cur=v?findPlaces(v):[];draw();clearTimeout(tm);
+    if(GL.on&&v.length>=3&&cur.length<4){const my=++seq;tm=setTimeout(async()=>{const r=await osmFind(v);if(my!==seq)return;
+      r.forEach(o=>{if(!cur.some(c=>dist([c.lat,c.lon],[o.lat,o.lon])<15))cur.push(o)});cur=cur.slice(0,8);draw()},450)}};
+  q.onkeydown=e=>{if(e.key==="ArrowDown"&&box.firstChild){e.preventDefault();box.firstChild.focus()}};
+  box.onkeydown=e=>{const t=e.target;if(e.key==="ArrowDown"&&t.nextSibling){e.preventDefault();t.nextSibling.focus()}if(e.key==="ArrowUp"){e.preventDefault();(t.previousSibling||q).focus()}};
+  f.onsubmit=async e=>{e.preventDefault();const v=q.value.trim();if(!v){q.focus();return}
+    const loc=findPlaces(v,1);if(loc[0])return pick(loc[0]);
+    if(GL.on){const r=await osmFind(v);if(r[0])return pick(r[0])}
+    toast(`Не нашли «${v}». Проверьте написание или отметьте точку на карте`)}}
 
 function matches(r){
   if(state.kind!=="all"&&!(r.caps[state.kind]>0))return false;
   if(state.vt!=="all"&&r.vt!==state.vt)return false;
+  if(state.maxp!=null){const ks=state.kind!=="all"?[state.kind]:Object.keys(r.caps).filter(k=>r.caps[k]>0);if(!ks.some(k=>r.prices[k]!=null&&r.prices[k]<=state.maxp))return false}
   if(state.A&&dist([state.A.lat,state.A.lon],[r.from.lat,r.from.lon])>300)return false;
   if(state.B&&dist([state.B.lat,state.B.lon],[r.to.lat,r.to.lon])>300)return false;
   return r.at>Date.now()-H;
@@ -567,6 +614,7 @@ function renderMap(){
     </div>
     <div class="seg hscroll" id="vts" aria-label="Вид транспорта">${[["all","Любой транспорт"],...Object.entries(VT).map(([k,v])=>[k,v.s])].map(([k,t])=>`<button type="button" data-v="${k}" aria-pressed="${state.vt===k}">${t}</button>`).join("")}</div>
     <div class="seg" id="kinds">${kinds.map(([k,t,c])=>`<button type="button" data-k="${k}" aria-pressed="${state.kind===k}">${c?`<i class="dot" style="background:var(${c})"></i>`:""}${t}</button>`).join("")}</div>
+    <label class="pricef" for="maxp">${state.kind==="all"?"Моя цена до, €":`Моя цена ${KINDS[state.kind].price} до, €`}<input id="maxp" type="number" inputmode="decimal" min="0" step="any" placeholder="любая" value="${state.maxp??""}"></label>
     ${searchForm(state)}
     <div class="mapbox ${state.pick?"picking":""}" id="mb">
       <div class="mapbar"><span class="pill" id="maphint"></span></div>
@@ -598,8 +646,9 @@ function renderMap(){
   $("#pB").onclick=()=>{state.pick=state.pick==="B"?null:"B";renderMap()};
   $$("#kinds button").forEach(b=>b.onclick=()=>{state.kind=b.dataset.k;state.sel=null;renderMap()});
   $$("#vts button").forEach(b=>b.onclick=()=>{state.vt=b.dataset.v;state.sel=null;renderMap()});
+  {let tm=0;$("#maxp").oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{const v=e.target.value.trim();state.maxp=v===""?null:Math.max(0,+v);state.sel=null;renderMap();const el=$("#maxp");el.focus()},600)}}
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
-  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.sel=null;state.pick=null;renderMap()};
+  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
 }
 function selectRoute(id){
   state.sel=id;mapCtx.select(id);
@@ -694,26 +743,27 @@ function bindOffers(){
 function bookSheet(id){
   const r=state.routes.find(x=>x.id===id);
   const ks=Object.keys(r.caps).filter(k=>r.caps[k]>0);
-  let k=state.kind!=="all"&&r.caps[state.kind]?state.kind:ks[0],qty=k==="parcel"?5:1;
+  let k=state.kind!=="all"&&r.caps[state.kind]?state.kind:ks[0],qty=k==="parcel"?0:1;
   const draw=s=>{
-    const cost=r.prices[k]*qty,fee=PLANS[state.plan].fee;
+    const cost=r.prices[k]*qty,fee=FEE;
     s.querySelector(".sheet").innerHTML=`
       <h2>${esc(r.from.name)} → ${esc(r.to.name)}</h2>
       <p class="small muted">${when(r.at).txt} · ${esc(r.driver)}, ${esc(r.vehicle)}</p>
       <div class="seg" id="bk">${ks.map(x=>`<button type="button" data-k="${x}" aria-pressed="${x===k}"><i class="dot" style="background:var(${KINDS[x].color})"></i>${KINDS[x].t}</button>`).join("")}</div>
-      <label for="qty">${k==="seat"?"Сколько мест":k==="parcel"?"Вес посылки, кг":k==="drive"?"Сколько машин пригнать":"Сколько машин"}<input id="qty" type="number" min="1" max="${r.caps[k]}" step="1" value="${Math.min(qty,r.caps[k])}"></label>
-      ${k==="car"||k==="drive"?`<label for="carinfo">${k==="drive"?"Какую машину пригнать":"Какая машина"}<input id="carinfo" value="Audi A4, 2019, на ходу, оплачена продавцу"></label>`:""}
+      <label for="qty">${k==="seat"?"Сколько мест":k==="parcel"?"Вес посылки, кг":k==="drive"?"Сколько машин пригнать":"Сколько машин"}<input id="qty" type="number" min="1" max="${r.caps[k]}" step="1" value="${qty?Math.min(qty,r.caps[k]):""}" placeholder="${k==="parcel"?"впишите вес":""}"></label>
+      ${k==="car"||k==="drive"?`<label for="carinfo">${k==="drive"?"Какую машину пригнать":"Какая машина"}<input id="carinfo" placeholder="Например: Audi A4, 2019, на ходу"></label>`:""}
       ${k==="drive"?`<p class="small muted">Для перегона понадобятся доверенность на водителя, страховка Green Card и документы на машину.</p>`:""}
-      <div class="kv"><span class="muted">Водителю, ориентировочно</span><span>${eur(cost)}</span></div>
-      <div class="kv"><span class="muted">Сервисный сбор (${PLANS[state.plan].t.toLowerCase()})</span><span>${fee?eur(fee):"включён в подписку"}</span></div>
-      <p class="small muted">Точную цену вы согласуете с водителем в чате. Сервисный сбор оплачивается сейчас и подтверждает бронь.</p>
-      <button class="btn" id="pay" type="button">Оплатить ${fee?eur(fee):""} и забронировать</button>
+      <div class="kv"><span class="muted">Водителю, ориентировочно</span><span>${qty?eur(cost):"—"}</span></div>
+      <div class="kv"><span class="muted">Плата за участие, разовая</span><span>${lei(fee)}</span></div>
+      <p class="small muted">Точную цену вы согласуете с водителем в чате. Плата за участие оплачивается сейчас и подтверждает бронь.</p>
+      <button class="btn" id="pay" type="button">Оплатить ${lei(fee)} и забронировать</button>
       <button class="btn ghost" id="cl" type="button">Отмена</button>`;
-    s.querySelectorAll("#bk button").forEach(b=>b.onclick=()=>{k=b.dataset.k;qty=k==="parcel"?5:1;draw(s)});
-    s.querySelector("#qty").oninput=e=>{qty=Math.max(1,Math.min(r.caps[k],+e.target.value||1));const c=r.prices[k]*qty;s.querySelector(".kv span:last-child").textContent=eur(c)};
+    s.querySelectorAll("#bk button").forEach(b=>b.onclick=()=>{k=b.dataset.k;qty=k==="parcel"?0:1;draw(s)});
+    s.querySelector("#qty").oninput=e=>{const v=+e.target.value||0;qty=v?Math.max(1,Math.min(r.caps[k],v)):0;s.querySelector(".kv span:last-child").textContent=qty?eur(r.prices[k]*qty):"—"};
     s.querySelector("#cl").onclick=closeSheet;
     s.querySelector("#pay").onclick=()=>{
-      qty=Math.max(1,Math.min(r.caps[k],+s.querySelector("#qty").value||1));
+      const qv=+s.querySelector("#qty").value||0;if(qv<=0){toast(k==="parcel"?"Впишите вес посылки":"Впишите количество");s.querySelector("#qty").focus();return}
+      qty=Math.max(1,Math.min(r.caps[k],qv));
       r.caps[k]-=qty;
       state.bookings.unshift({id:"B-"+Math.floor(1e4+Math.random()*9e4),route:r.id,title:`${r.from.name} → ${r.to.name}`,kind:k,qty,cost:r.prices[k]*qty,fee,at:r.at,driver:r.driver});
       const c=chatFor(r);c.msgs.push({me:false,text:`Бронь подтверждена: ${KINDS[k].t.toLowerCase()}, ${qty} ${KINDS[k].unit}. Напишите, где удобно встретиться.`,t:Date.now()});c.unread=(c.unread||0)+1;
@@ -793,15 +843,14 @@ function renderPublish(){
         <label class="btn ghost sm filebtn" for="pphoto">${p.photo?"Заменить фото":"Загрузить фото транспорта"}<input id="pphoto" type="file" accept="image/*"></label>
         ${p.photo?`<button class="btn ghost sm" type="button" id="pphotodel">Убрать</button>`:""}</div>
       <label for="pv" id="pvl" ${p.vt==="none"?"hidden":""}>${p.vt==="plane"?"Рейс":"Транспорт"}<input id="pv" value="" placeholder="${p.vt!=="none"?VT[p.vt].ph:""}"></label>
-      <p class="small muted">Что можете взять (оставьте 0, если не берёте)</p>
-      <div class="row"><label for="cs">Свободных мест<input id="cs" type="number" min="0" max="20" value="4"></label><label for="ps">Цена за место, €<input id="ps" type="number" min="0" value="120"></label></div>
-      <div class="row"><label for="cp">Посылки, до кг<input id="cp" type="number" min="0" value="100"></label><label for="pp">Цена за кг, €<input id="pp" type="number" min="0" step="0.1" value="1.2"></label></div>
-      <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" min="0" max="10" value="0"></label><label for="pc">Цена за авто, €<input id="pc" type="number" min="0" value="600"></label></div>
-      <div class="row"><label for="cd">Перегон: пригоню авто<input id="cd" type="number" min="0" max="1" value="0"></label><label for="pdr">Хочу за перегон, €<input id="pdr" type="number" min="0" value="250"></label></div>
+      <p class="small muted">Что можете взять и за сколько. Заполните только то, что берёте, и впишите свою цену. Пустые строки не публикуются.</p>
+      <div class="row"><label for="cs">Свободных мест<input id="cs" type="number" inputmode="numeric" min="0" max="60" placeholder="сколько"></label><label for="ps">Ваша цена за место, €<input id="ps" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
+      <div class="row"><label for="cp">Посылки, до кг<input id="cp" type="number" inputmode="numeric" min="0" placeholder="сколько кг"></label><label for="pp">Ваша цена за кг, €<input id="pp" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
+      <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" inputmode="numeric" min="0" max="10" placeholder="сколько"></label><label for="pc">Ваша цена за авто, €<input id="pc" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
+      <div class="row"><label for="cd">Перегон: пригоню авто<input id="cd" type="number" inputmode="numeric" min="0" max="3" placeholder="сколько"></label><label for="pdr">Ваша цена за перегон, €<input id="pdr" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
       <label for="pn">Комментарий<input id="pn" placeholder="Например: остановки в Яссах и Вене"></label>
-      <div class="kv"><span class="muted">Размещение маршрута</span><span>бесплатно</span></div>
-      <div class="kv"><span class="muted">Комиссия с брони</span><span>5 % или подписка водителя 9,99 €/мес</span></div>
-      <button class="btn" type="submit">Опубликовать маршрут</button>
+      <div class="kv"><span class="muted">Плата за участие, разовая</span><span>${lei(FEE)}</span></div>
+      <button class="btn" type="submit">Оплатить ${lei(FEE)} и опубликовать</button>
     </form>`;
   const d=new Date(Date.now()+864e5);$("#pd").value=d.toISOString().slice(0,10);
   Object.entries(p.form).forEach(([id,v])=>{const el=document.getElementById(id);if(el&&el.closest("#pf"))el.value=v});
@@ -826,8 +875,14 @@ function renderPublish(){
   $("#qA").onclick=()=>{p.pick="A";renderPublish()};$("#qB").onclick=()=>{p.pick="B";renderPublish()};
   $("#pf").onsubmit=e=>{e.preventDefault();
     if(!p.A||!p.B){toast("Отметьте на карте обе точки: откуда и куда");return}
-    const caps={},prices={};[["seat","cs","ps"],["parcel","cp","pp"],["car","cc","pc"],["drive","cd","pdr"]].forEach(([k,c,pr])=>{const v=+$("#"+c).value||0;if(v>0){caps[k]=v;prices[k]=+$("#"+pr).value||0}});
-    if(!Object.keys(caps).length){toast("Укажите, что можете взять: места, посылки или авто");return}
+    const caps={},prices={};let bad=null;
+    for(const [k,c,pr,need,what] of [["seat","cs","ps","Впишите цену за место","Укажите, сколько свободных мест"],["parcel","cp","pp","Впишите цену за кг","Укажите, сколько кг посылок возьмёте"],["car","cc","pc","Впишите цену за авто на трале","Укажите, сколько авто возьмёте на трал"],["drive","cd","pdr","Впишите цену за перегон","Укажите, сколько авто пригоните"]]){
+      const cv=$("#"+c).value.trim(),pv=$("#"+pr).value.trim(),v=+cv||0;
+      if(v>0&&(pv===""||+pv<0)){bad=[need,pr];break}
+      if(v<=0&&pv!==""){bad=[what,c];break}
+      if(v>0){caps[k]=v;prices[k]=+pv}}
+    if(bad){toast(bad[0]);$("#"+bad[1]).focus();return}
+    if(!Object.keys(caps).length){toast("Укажите, что можете взять, и впишите свою цену");$("#cs").focus();return}
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
     const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:$("#pcity").value.trim()||p.A.name,street:$("#pstreet").value.trim(),lat:mp.lat,lon:mp.lon};
     const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?($("#pv").value.trim()||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:$("#pn").value,mine:true};
@@ -859,9 +914,9 @@ function renderProfile(){
       <div class="row"><button class="btn sm" id="usoc" type="button">Сохранить</button><button class="btn ghost sm" type="button" data-person="${esc(state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name)}">Как меня видят</button></div>
     </div>
     ${shareCard()}
-    <div class="card"><h2>Как платить за сервис</h2>
-      <div class="plan" id="plans">${Object.entries(PLANS).map(([k,v])=>`<button type="button" data-p="${k}" aria-pressed="${state.plan===k}"><span class="small muted">${v.t}</span><b>${v.p}</b><span class="small muted">${k==="pay"?"Платите только когда бронируете":"Безлимит броней и чатов"}</span></button>`).join("")}</div>
-      <p class="small muted">Водители размещают маршруты бесплатно и платят 5 % с брони или подписку 9,99 € в месяц. Цены демонстрационные, их можно поменять.</p>
+    <div class="card"><h2>Плата за участие</h2>
+      <div class="kv"><span>Каждая бронь или опубликованный маршрут</span><b>${lei(FEE)}</b></div>
+      <p class="small muted">Разовая плата за участие. Без подписок и комиссий. Цену поездки вы согласуете с водителем в чате.</p>
     </div>
     <div class="card"><h2>Мои брони</h2>
       ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br>${b.reviewed?`<span class="pill ok">Отзыв оставлен</span>`:`<button class="btn ghost sm" type="button" data-rev="${b.id}">Оставить отзыв</button>`}</span></div>`).join("")
@@ -876,7 +931,6 @@ function renderProfile(){
     <button class="btn ghost" id="reintro" type="button">Как пользоваться приложением</button>
     <button class="btn ghost" id="out" type="button">Выйти</button>
     <button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`;
-  $$("#plans button").forEach(b=>b.onclick=()=>{state.plan=b.dataset.p;save();renderProfile();toast(state.plan==="sub"?"Подписка оформлена (демо)":"Выбран разовый сбор")});
   $$("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
   $("#reintro").onclick=()=>showIntro(0);bindShare();
   $$("[data-rev]").forEach(x=>x.onclick=()=>reviewSheet(state.bookings.find(b=>b.id===x.dataset.rev)));
@@ -888,7 +942,7 @@ function renderProfile(){
       if(!g("ucname")){toast("Укажите название компании");return}
       if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("Проверьте e-mail: в нём должны быть @ и точка");return}
       Object.assign(state.user,{cname:g("ucname"),idno:g("uidno"),cphone:g("ucphone"),cphone2:g("ucphone2"),fax:g("ufax"),email:em})}
-    state.user.ig=ig;state.user.fb=fb;save();toast("Профиль сохранён");renderProfile()};
+    state.user.ig=ig;state.user.fb=fb;save();renderProfile();doneSheet("Отлично! Ваш профиль изменён!","Теперь попутчики увидят обновлённые данные.")};
   $$("#ltype button").forEach(x=>x.onclick=()=>{state.user.ltype=x.dataset.l;save();renderProfile()});
   $("#uphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file||!/^image\//.test(file.type))return;
     const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();toast("Фото профиля добавлено")};im.src=rd.result};rd.readAsDataURL(file)};
@@ -928,9 +982,9 @@ const FAQ=[
   [/посыл|переда/i,"Чтобы отправить посылку, на карте выберите «Посылки», укажите свой город и город получателя. Нажмите «Написать» у ближайшего водителя и договоритесь, где передать коробку."],
   [/перегон|пригна|купил/i,"Купили машину за границей? Выберите «Перегон»: это люди, которые едут туда без своей машины и могут пригнать вашу. Понадобятся доверенность, страховка Green Card и документы на машину."],
   [/трал|эвакуат/i,"Выберите «Трал», чтобы найти перевозчика с автовозом или эвакуатором. Укажите, откуда забрать машину, и забронируйте место на погрузку."],
-  [/цен|плат|деньг|сбор|подпис|стоит/i,"Цену с водителем вы согласуете в чате. Приложение берёт сервисный сбор 2 € за бронь или подписку 4,99 € в месяц. Водители размещают маршруты бесплатно."],
+  [/цен|плат|деньг|сбор|подпис|стоит|лей/i,"Цену поездки вы согласуете с водителем в чате. За участие в проекте каждый платит 1 лей разово: пассажир или отправитель при брони, водитель при публикации маршрута. Подписок и комиссий нет."],
   [/опублик|водител|я еду|свою машин|заработ/i,"Если едете сами, откройте вкладку «Я еду», отметьте на карте откуда и куда, укажите свободные места, посылки или трал и нажмите «Опубликовать маршрут»."],
-  [/брон/i,"Нажмите «Забронировать» у поездки, выберите, что нужно, и оплатите сервисный сбор. Водитель сразу напишет вам в чат."],
+  [/брон/i,"Нажмите «Забронировать» у поездки, выберите, что нужно, и оплатите 1 лей за участие. Водитель сразу напишет вам в чат."],
   [/чат|написа/i,"Нажмите «Написать» у любой поездки или у оранжевой точки. Все переписки лежат во вкладке «Чаты»."],
   [/поезд|ехать|место|попут/i,"Чтобы найти попутку, на карте укажите «Откуда» и «Куда». Ниже появится список ближайших выездов. Нажмите «Написать», договоритесь о цене и забронируйте место."]
 ];
@@ -1071,7 +1125,7 @@ function render(){
 }
 $("#fab").onclick=openSupport;$("#helpintro").onclick=()=>showIntro(0);
 $$("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;if(b.dataset.tab==="chats")state.openChat=null;save();render()});
-document.body.insertAdjacentHTML("beforeend",`<datalist id="cities">${cityNames.map(c=>`<option value="${c}">`).join("")}</datalist>`);
+
 probeRealMap();
 let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
 render();
