@@ -110,6 +110,13 @@ svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
 .sheet>*{flex:none}
 #kinds{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 #kinds button{flex:none}
+.sharecard{background:var(--road);color:var(--road-ink);border-color:var(--road)}
+.sharecard h2{font:700 17px/1.25 var(--f-display)}
+.sharecard p{opacity:.85}
+.sharegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sharegrid a,.sharegrid button{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);text-decoration:none;font:600 14px var(--f-body);cursor:pointer}
+.sharelink{display:flex;gap:8px}
+.sharelink input{flex:1;min-width:0;font:13px var(--f-mono)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips button{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:99px;padding:6px 10px;cursor:pointer}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
@@ -285,13 +292,14 @@ let state={
   requests:store.get("requests",null)||seedReqs(),
   seenIntro:store.get("seenIntro",false),
   support:store.get("support",[]),
+  shared:store.get("shared",false),
   kind:"all",
   A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A"},
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
-const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support)};
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared)};
 
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
@@ -527,7 +535,8 @@ function renderMap(){
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 id="cnt"></h2><button class="btn ghost sm" id="reset" type="button">Сбросить</button></div>
     <button class="btn ghost" id="wantbtn" type="button">Не нашли транспорт? Поставить точку ожидания</button>
     <p class="small muted">Цены ориентировочные. Окончательную цену вы согласуете с водителем во внутреннем чате.</p>
-    <div class="list" id="offers"></div>`;
+    <div class="list" id="offers"></div>
+    ${shareCard()}`;
   const mb=$("#mb");
   const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onWait:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else waitSheet(h)},onHub:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else citySheet(h,h.t==="dep"?"out":"in")},onSelect:id=>selectRoute(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
   mapCtx=m;
@@ -542,7 +551,7 @@ function renderMap(){
   $("#offers").innerHTML=list.length?list.map(offerCard).join(""):`<div class="card empty">По этому направлению пока никто не едет. Попробуйте другой город рядом или включите «Все» типы.</div>`;
   const focusPts=[state.A,state.B].filter(Boolean);
   if(focusPts.length===2)m.focus(focusPts);
-  bindOffers();bindSearch(state,renderMap);$("#wantbtn").onclick=()=>newWaitSheet();
+  bindOffers();bindSearch(state,renderMap);$("#wantbtn").onclick=()=>newWaitSheet();bindShare();
   $("#pA").onclick=()=>{state.pick=state.pick==="A"?null:"A";renderMap()};
   $("#pB").onclick=()=>{state.pick=state.pick==="B"?null:"B";renderMap()};
   $$("#kinds button").forEach(b=>b.onclick=()=>{state.kind=b.dataset.k;state.sel=null;renderMap()});
@@ -763,6 +772,7 @@ function renderProfile(){
   const bs=state.bookings;
   view.innerHTML=`<h1>${esc(state.user.name)}</h1>
     <p class="muted mono">${esc(state.user.phone)}</p>
+    ${shareCard()}
     <div class="card"><h2>Как платить за сервис</h2>
       <div class="plan" id="plans">${Object.entries(PLANS).map(([k,v])=>`<button type="button" data-p="${k}" aria-pressed="${state.plan===k}"><span class="small muted">${v.t}</span><b>${v.p}</b><span class="small muted">${k==="pay"?"Платите только когда бронируете":"Безлимит броней и чатов"}</span></button>`).join("")}</div>
       <p class="small muted">Водители размещают маршруты бесплатно и платят 5 % с брони или подписку 9,99 € в месяц. Цены демонстрационные, их можно поменять.</p>
@@ -782,9 +792,9 @@ function renderProfile(){
     <button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`;
   $$("#plans button").forEach(b=>b.onclick=()=>{state.plan=b.dataset.p;save();renderProfile();toast(state.plan==="sub"?"Подписка оформлена (демо)":"Выбран разовый сбор")});
   $$("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
-  $("#reintro").onclick=()=>showIntro(0);
+  $("#reintro").onclick=()=>showIntro(0);bindShare();
   $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
-  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
+  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
 }
 
 /* ---------- Ознакомление ---------- */
@@ -843,6 +853,37 @@ function openSupport(){
   };
   sheet("",draw);
 }
+
+/* ---------- Поделиться приложением ---------- */
+const SITE_URL="https://autovinzare-code.github.io/dzhipies/";
+const shareUrl=()=>/^https?:$/.test(location.protocol)&&!/claude|anthropic/.test(location.host)?location.href.split("#")[0]:SITE_URL;
+const SHARE_TEXT="go-transfer-go: попутки, посылки и перевозка машин по Европе. Смотри на карте, кто едет в твою сторону, или бери попутчиков сам.";
+function shareCard(){
+  return state.shared
+    ?`<div class="card sharecard"><h2>Спасибо, вы нам помогли!</h2><p>Каждый, кто узнает о go-transfer-go от вас, быстрее найдёт попутку или водителя для посылки.</p><button class="btn" type="button" data-share>Поделиться ещё раз</button></div>`
+    :`<div class="card sharecard"><h2>Поделись один раз, помоги нам</h2><p>Чем больше людей в приложении, тем быстрее находится попутка, посылка уезжает в тот же день, а водители не едут с пустыми местами.</p><button class="btn" type="button" data-share>Поделиться приложением</button></div>`;
+}
+function markShared(){if(!state.shared){state.shared=true;save();toast("Спасибо, что поделились!")}}
+async function shareApp(){
+  const url=shareUrl();
+  if(navigator.share){try{await navigator.share({title:"go-transfer-go",text:SHARE_TEXT,url});markShared();rerenderShare();return}catch(e){if(e&&e.name==="AbortError")return}}
+  const t=encodeURIComponent(SHARE_TEXT),u=encodeURIComponent(url),tu=encodeURIComponent(SHARE_TEXT+" "+url);
+  const links=[["WhatsApp",`https://wa.me/?text=${tu}`],["Telegram",`https://t.me/share/url?url=${u}&text=${t}`],["Facebook",`https://www.facebook.com/sharer/sharer.php?u=${u}`],["Одноклассники",`https://connect.ok.ru/offer?url=${u}&title=${t}`],["ВКонтакте",`https://vk.com/share.php?url=${u}&title=${t}`],["Viber",`viber://forward?text=${tu}`]];
+  sheet(`<h2>Поделиться go-transfer-go</h2>
+    <p class="small muted">Выберите, где поделиться. Можно отправить другу или выложить у себя на странице.</p>
+    <div class="sharegrid">${links.map(([n,h])=>`<a href="${h}" target="_blank" rel="noopener">${n}</a>`).join("")}</div>
+    <p class="small muted">Или скопируйте ссылку и вставьте куда угодно, например в Instagram:</p>
+    <div class="sharelink"><input id="shl" readonly value="${esc(url)}" aria-label="Ссылка на приложение"><button class="btn sm" id="shc" type="button">Копировать</button></div>
+    <button class="btn ghost" id="shx" type="button">Закрыть</button>`,s=>{
+    s.querySelectorAll(".sharegrid a").forEach(a=>a.addEventListener("click",()=>{markShared();rerenderShare()}));
+    s.querySelector("#shc").onclick=()=>{const i=s.querySelector("#shl");
+      const ok=()=>{toast("Ссылка скопирована");markShared();rerenderShare()};
+      try{navigator.clipboard.writeText(i.value).then(ok,()=>{i.select();toast("Выделили ссылку, скопируйте её")})}catch(e){i.select();toast("Выделили ссылку, скопируйте её")}};
+    s.querySelector("#shx").onclick=closeSheet;
+  });
+}
+function rerenderShare(){$$(".sharecard").forEach(c=>{c.outerHTML=shareCard()});bindShare()}
+function bindShare(){$$("[data-share]").forEach(b=>b.onclick=shareApp)}
 
 /* ---------- Каркас ---------- */
 function render(){
