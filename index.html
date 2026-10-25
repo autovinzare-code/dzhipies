@@ -125,6 +125,24 @@ svg.z1 .c1,svg.z2 .c2,svg.z3 .c3{display:inline}
 .photobox img{width:120px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .filebtn{position:relative;overflow:hidden}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.vbadge{display:inline-flex;align-items:center;gap:3px;font:600 11px var(--f-body);color:var(--ok);border:1px solid currentColor;border-radius:99px;padding:1px 7px;vertical-align:1px;white-space:nowrap}
+.vbadge svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;cursor:pointer}
+.ava{overflow:hidden}
+.ava img{width:100%;height:100%;object-fit:cover}
+.ava.big{width:60px;height:60px;font-size:22px}
+.trust{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.trust span{display:flex;align-items:center;gap:8px}
+.trust .y{color:var(--ok);font-weight:700}
+.trust .n{color:var(--muted)}
+.socials{display:flex;gap:8px;flex-wrap:wrap}
+.socials a,.socials button{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);text-decoration:none;font:600 14px var(--f-body);cursor:pointer}
+.review{display:flex;flex-direction:column;gap:2px;padding-block:8px;border-top:1px solid var(--line)}
+.stars{color:var(--accent);letter-spacing:1px}
+.starpick{display:flex;gap:4px}
+.starpick button{font-size:30px;line-height:1;background:none;border:0;color:var(--line);cursor:pointer;padding:2px}
+.starpick button[aria-pressed="true"]{color:var(--accent)}
+textarea{min-height:80px;resize:vertical}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips button{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:99px;padding:6px 10px;cursor:pointer}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
@@ -308,6 +326,7 @@ let state={
   seenIntro:store.get("seenIntro",false),
   support:store.get("support",[]),
   shared:store.get("shared",false),
+  reviews:store.get("reviews",[]),
   kind:"all",
   A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A",vt:"car"},
@@ -315,7 +334,7 @@ let state={
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
-const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared)};
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("plan",state.plan);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared);store.set("reviews",state.reviews)};
 
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
@@ -620,7 +639,7 @@ function waitSheet(h){
   sheet(`<h2><i class="dot" style="background:var(--wait)"></i> Ждут транспорт из ${esc(h.name)}</h2>
     <p class="small muted">Эти люди не нашли попутку. Едете в ту же сторону? Напишите им и договоритесь о цене.</p>
     ${Object.entries(by).map(([to,qs])=>`<div class="card"><div class="kv"><span>→ ${esc(to)}</span><span>${qs.reduce((x,q)=>x+q.people,0)} чел. · ${qs.length} запр.</span></div>
-      ${qs.map(q=>`<div class="kv" style="align-items:center"><span style="font-weight:400">${esc(q.name)}${q.mine?" (вы)":""} · <span class="mono">${when(q.at).txt}</span><br><span class="small muted">${WANT[q.kind]}${q.kind==="seat"?", "+q.people+" чел.":""}${q.note?" · "+esc(q.note):""}</span></span>${q.mine?`<button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button>`:`<button class="btn sm" data-wq="${q.id}" type="button">Написать</button>`}</div>`).join("")}
+      ${qs.map(q=>`<div class="kv" style="align-items:center"><span style="font-weight:400">${q.mine?esc(q.name)+" (вы)":nameBtn(q.name)} · <span class="mono">${when(q.at).txt}</span><br><span class="small muted">${WANT[q.kind]}${q.kind==="seat"?", "+q.people+" чел.":""}${q.note?" · "+esc(q.note):""}</span></span>${q.mine?`<button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button>`:`<button class="btn sm" data-wq="${q.id}" type="button">Написать</button>`}</div>`).join("")}
       <button class="btn ghost sm" type="button" data-go="${esc(to)}">Я еду в ${esc(to)}: опубликовать маршрут</button></div>`).join("")||`<p class="small muted">Здесь пока никто не ждёт.</p>`}
     <button class="btn ghost" type="button" id="wX">Закрыть</button>`,s=>{
     s.querySelector("#wX").onclick=closeSheet;
@@ -658,7 +677,7 @@ function offerCard(r){
   return `<div class="card offer${state.sel===r.id?" sel":""}" data-id="${r.id}">
     <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
     <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
-    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${esc(r.driver)} ★${r.rating.toFixed(1)} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
+    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${nameBtn(r.driver)} ${ratingTxt(person(r.driver))} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
     ${r.photo?`<img class="vphoto" src="${r.photo}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
     <div class="caps"><span class="pill ${isBus(r)?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
     <div class="roadinfo"></div>
@@ -811,7 +830,7 @@ function renderPublish(){
     if(!Object.keys(caps).length){toast("Укажите, что можете взять: места, посылки или авто");return}
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
     const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:$("#pcity").value.trim()||p.A.name,street:$("#pstreet").value.trim(),lat:mp.lat,lon:mp.lon};
-    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.name,vehicle:vt?($("#pv").value.trim()||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:$("#pn").value,mine:true};
+    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?($("#pv").value.trim()||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:$("#pn").value,mine:true};
     state.routes.push(r);save();
     state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
@@ -823,13 +842,29 @@ function renderProfile(){
   const bs=state.bookings;
   view.innerHTML=`<h1>${esc(state.user.name)}</h1>
     <p class="muted mono">${esc(state.user.phone)}</p>
+    <div class="card"><div style="display:flex;gap:12px;align-items:center"><span class="ava big">${state.user.photo?`<img src="${state.user.photo}" alt="Ваше фото">`:esc(state.user.name[0])}</span>
+        <div><h2>Мой профиль ${state.user.docs?vbadge:""}</h2><p class="small muted">${ratingTxt(person(state.user.name))}</p></div></div>
+      <div class="trust"><span><b class="y">✓</b>Номер телефона подтверждён</span>
+        <span><b class="${state.user.photo?"y":"n"}">${state.user.photo?"✓":"–"}</b>Фото профиля <label class="btn ghost sm filebtn" for="uphoto" style="margin-left:auto">${state.user.photo?"Заменить":"Добавить"}<input id="uphoto" type="file" accept="image/*"></label></span>
+        <span><b class="${state.user.docs?"y":"n"}">${state.user.docs?"✓":"–"}</b>${state.user.docs?"Документы проверены":"Документы не проверены"} ${state.user.docs?"":`<button class="btn sm" id="uverify" type="button" style="margin-left:auto">Пройти проверку</button>`}</span></div>
+      <div><p class="small muted" style="margin-bottom:6px">Кто вы</p><div class="seg" id="ltype"><button type="button" data-l="person" aria-pressed="${state.user.ltype!=="company"}">Физическое лицо</button><button type="button" data-l="company" aria-pressed="${state.user.ltype==="company"}">Юридическое лицо</button></div></div>
+      ${state.user.ltype==="company"?`<p class="small muted">Для перевозчиков, автобусов и маршруток. Рядом с названием появится значок «Компания», а контакты увидят все пассажиры.</p>
+        <label for="ucname">Название компании<input id="ucname" value="${esc(state.user.cname||"")}" placeholder="Например: Trans Nord SRL"></label>
+        <label for="uidno">Регистрационный номер (IDNO)<input id="uidno" inputmode="numeric" value="${esc(state.user.idno||"")}" placeholder="13 цифр"></label>
+        <div class="row"><label for="ucphone">Телефон<input id="ucphone" type="tel" value="${esc(state.user.cphone||state.user.phone)}"></label><label for="ucphone2">Второй телефон<input id="ucphone2" type="tel" value="${esc(state.user.cphone2||"")}" placeholder="необязательно"></label></div>
+        <div class="row"><label for="ufax">Факс<input id="ufax" type="tel" value="${esc(state.user.fax||"")}" placeholder="если есть"></label><label for="uemail">E-mail<input id="uemail" type="email" value="${esc(state.user.email||"")}" placeholder="office@company.md"></label></div>`:""}
+      <p class="small muted">Добавьте ссылки на свои страницы, чтобы попутчики могли узнать вас до поездки.</p>
+      <label for="uig">Instagram<input id="uig" type="url" inputmode="url" placeholder="https://instagram.com/ваш_ник" value="${esc(state.user.ig||"")}"></label>
+      <label for="ufb">Facebook<input id="ufb" type="url" inputmode="url" placeholder="https://facebook.com/ваша_страница" value="${esc(state.user.fb||"")}"></label>
+      <div class="row"><button class="btn sm" id="usoc" type="button">Сохранить</button><button class="btn ghost sm" type="button" data-person="${esc(state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name)}">Как меня видят</button></div>
+    </div>
     ${shareCard()}
     <div class="card"><h2>Как платить за сервис</h2>
       <div class="plan" id="plans">${Object.entries(PLANS).map(([k,v])=>`<button type="button" data-p="${k}" aria-pressed="${state.plan===k}"><span class="small muted">${v.t}</span><b>${v.p}</b><span class="small muted">${k==="pay"?"Платите только когда бронируете":"Безлимит броней и чатов"}</span></button>`).join("")}</div>
       <p class="small muted">Водители размещают маршруты бесплатно и платят 5 % с брони или подписку 9,99 € в месяц. Цены демонстрационные, их можно поменять.</p>
     </div>
     <div class="card"><h2>Мои брони</h2>
-      ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br><span class="pill ok">Подтверждено</span></span></div>`).join("")
+      ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br>${b.reviewed?`<span class="pill ok">Отзыв оставлен</span>`:`<button class="btn ghost sm" type="button" data-rev="${b.id}">Оставить отзыв</button>`}</span></div>`).join("")
         :`<p class="small muted">Пока нет броней. Найдите маршрут на карте и нажмите «Забронировать».</p>`}
     </div>
     <div class="card"><h2>Мои маршруты</h2>
@@ -844,8 +879,21 @@ function renderProfile(){
   $$("#plans button").forEach(b=>b.onclick=()=>{state.plan=b.dataset.p;save();renderProfile();toast(state.plan==="sub"?"Подписка оформлена (демо)":"Выбран разовый сбор")});
   $$("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
   $("#reintro").onclick=()=>showIntro(0);bindShare();
+  $$("[data-rev]").forEach(x=>x.onclick=()=>reviewSheet(state.bookings.find(b=>b.id===x.dataset.rev)));
+  if($("#uverify"))$("#uverify").onclick=verifySheet;
+  $("#usoc").onclick=()=>{const ig=$("#uig").value.trim(),fb=$("#ufb").value.trim();
+    if(ig&&!okUrl(ig,"instagram.com")){toast("Ссылка Instagram должна начинаться с https://instagram.com/");return}
+    if(fb&&!okUrl(fb,"facebook.com")){toast("Ссылка Facebook должна начинаться с https://facebook.com/");return}
+    if(state.user.ltype==="company"){const g=id=>$("#"+id).value.trim();const em=g("uemail");
+      if(!g("ucname")){toast("Укажите название компании");return}
+      if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("Проверьте e-mail: в нём должны быть @ и точка");return}
+      Object.assign(state.user,{cname:g("ucname"),idno:g("uidno"),cphone:g("ucphone"),cphone2:g("ucphone2"),fax:g("ufax"),email:em})}
+    state.user.ig=ig;state.user.fb=fb;save();toast("Профиль сохранён");renderProfile()};
+  $$("#ltype button").forEach(x=>x.onclick=()=>{state.user.ltype=x.dataset.l;save();renderProfile()});
+  $("#uphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file||!/^image\//.test(file.type))return;
+    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();toast("Фото профиля добавлено")};im.src=rd.result};rd.readAsDataURL(file)};
   $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
-  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
+  $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;state.reviews=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
 }
 
 /* ---------- Ознакомление ---------- */
@@ -903,6 +951,76 @@ function openSupport(){
     s.querySelector("#sx").onclick=closeSheet;
   };
   sheet("",draw);
+}
+
+/* ---------- Доверие: проверка, отзывы, соцсети ---------- */
+const CHECK=`<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+const vbadge=`<span class="vbadge" title="Телефон и документы проверены">${CHECK}Проверен</span>`;
+const REV_POOL=[["Мария",5,"Приехали вовремя, машина чистая, водитель вежливый."],["Олег",5,"Посылку доставил на следующий день, всё целое."],["Светлана",4,"Всё хорошо, только выехали на 30 минут позже."],["Игорь",5,"Помог с багажом, останавливались, когда просили."],["Татьяна",5,"Передала сладости маме, водитель сам привёз до двери."],["Раду",4,"Нормально доехали, договорились о цене без проблем."],["Анастасия",5,"Очень спокойная езда, рекомендую."]];
+const hsh=t=>{let h=7;for(const c of t)h=(h*31+c.charCodeAt(0))%100003;return h};
+const UNVERIFIED=["Георге","Марин","Дан"];
+const COMPANIES={"Molda Trans":{idno:"1012600000001",phones:["+373 22 00 00 01","+373 69 000 001"],fax:"+373 22 00 00 02",email:"info@moldatrans.example"},
+  "EuroBus MD":{idno:"1012600000002",phones:["+373 22 00 00 03"],fax:"",email:"booking@eurobus.example"}};
+const cbadge=`<span class="vbadge" style="color:var(--ink)" title="Юридическое лицо">Компания</span>`;
+function person(name){
+  const me=state.user&&(name===state.user.name||name===state.user.cname),h=hsh(name);
+  const seedRev=me?[]:[0,1,2].slice(0,2+h%2).map(i=>{const r=REV_POOL[(h+i*3)%REV_POOL.length];return {who:r[0],stars:r[1],text:r[2],t:Date.now()-(i+1)*(9+h%20)*864e5}});
+  const reviews=[...state.reviews.filter(r=>r.to===name),...seedRev].sort((a,b)=>b.t-a.t);
+  const rating=reviews.length?reviews.reduce((x,r)=>x+r.stars,0)/reviews.length:null;
+  if(me){const u=state.user;const co=u.ltype==="company"?{idno:u.idno||"",phones:[u.cphone,u.cphone2].filter(Boolean),fax:u.fax||"",email:u.email||""}:null;return {name,me:true,company:co,phone:true,docs:!!u.docs,photo:u.photo||null,verified:!!u.docs,ig:u.ig||"",fb:u.fb||"",trips:state.routes.filter(r=>r.mine).length+state.bookings.length,since:2026,reviews,rating}}
+  const ver=!UNVERIFIED.includes(name);
+  return {name,company:COMPANIES[name]||null,phone:true,docs:ver,photo:null,verified:ver,ig:h%3!==0?"demo":"",fb:h%2===0?"demo":"",trips:5+h%170,since:2022+h%4,reviews,rating};
+}
+const ratingTxt=P=>P.rating?`★${P.rating.toFixed(1)} (${P.reviews.length})`:"новичок";
+const nameBtn=n=>{const P=person(n);return `<button class="linkbtn" type="button" data-person="${esc(n)}">${esc(n)}</button> ${P.company?cbadge:""}${P.verified?vbadge:""}`};
+const okUrl=(u,host)=>{try{const x=new URL(u);return x.protocol==="https:"&&(x.hostname===host||x.hostname.endsWith("."+host))}catch(e){return false}};
+function socialBtns(P){
+  const one=(v,label,host)=>!v?"":v==="demo"?`<button type="button" data-demo-social="${label}">${label}</button>`:okUrl(v,host)?`<a href="${esc(v)}" target="_blank" rel="noopener">${label}</a>`:"";
+  return one(P.ig,"Instagram","instagram.com")+one(P.fb,"Facebook","facebook.com");
+}
+function personSheet(name){
+  const P=person(name),tm=t=>new Date(t).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
+  const row=(ok,t)=>`<span><b class="${ok?"y":"n"}">${ok?"✓":"–"}</b>${t}</span>`;
+  const soc=socialBtns(P);
+  sheet(`<div style="display:flex;gap:12px;align-items:center"><span class="ava big">${P.photo?`<img src="${P.photo}" alt="">`:esc(name[0])}</span>
+      <div style="min-width:0"><h2>${esc(name)} ${P.company?cbadge:""}${P.verified?vbadge:""}</h2><p class="small muted">${ratingTxt(P)} · ${P.trips} поездок · в приложении с ${P.since} года</p></div></div>
+    <div class="trust">${row(P.phone,"Номер телефона подтверждён")}${row(P.docs,P.docs?"Документы проверены":"Документы ещё не проверены")}${row(!!soc,soc?"Есть ссылки на соцсети":"Соцсети не указаны")}</div>
+    ${P.company?`<div class="card"><h2>Контакты компании</h2>
+      ${P.company.idno?`<div class="kv"><span class="muted">Рег. номер (IDNO)</span><span class="mono">${esc(P.company.idno)}</span></div>`:""}
+      ${P.company.phones.map((t,i)=>`<div class="kv"><span class="muted">Телефон${P.company.phones.length>1?" "+(i+1):""}</span><span class="mono" style="user-select:all">${esc(t)}</span></div>`).join("")}
+      ${P.company.fax?`<div class="kv"><span class="muted">Факс</span><span class="mono" style="user-select:all">${esc(P.company.fax)}</span></div>`:""}
+      ${P.company.email?`<div class="kv"><span class="muted">E-mail</span><span style="user-select:all">${esc(P.company.email)}</span></div>`:""}</div>`:""}
+    ${soc?`<div><p class="small muted" style="margin-bottom:6px">Посмотреть страницу перед поездкой:</p><div class="socials">${soc}</div></div>`:""}
+    <h2>Отзывы</h2>
+    <div>${P.reviews.length?P.reviews.map(r=>`<div class="review"><span><span class="stars">${"★".repeat(r.stars)}${"☆".repeat(5-r.stars)}</span> <b>${esc(r.who)}</b> <span class="small muted">· ${tm(r.t)}</span></span><span class="small">${esc(r.text)}</span></div>`).join(""):`<p class="small muted">Пока нет отзывов.</p>`}</div>
+    <button class="btn ghost" type="button" id="pX">Закрыть</button>`,s=>{
+    s.querySelector("#pX").onclick=closeSheet;
+    s.querySelectorAll("[data-demo-social]").forEach(b=>b.onclick=()=>toast(`В демо ссылка ненастоящая. В рабочей версии откроется ${b.dataset.demoSocial} водителя`));
+  });
+}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-person]");if(b){e.stopPropagation();e.preventDefault();personSheet(b.dataset.person)}},true);
+function reviewSheet(b){
+  let stars=5;
+  const draw=s=>{s.querySelector(".sheet").innerHTML=`<h2>Отзыв о поездке</h2>
+    <p class="small muted">${esc(b.title)} · водитель ${esc(b.driver)}. Отзыв увидят все, кто захочет поехать с этим водителем.</p>
+    <div class="starpick" role="radiogroup" aria-label="Оценка">${[1,2,3,4,5].map(i=>`<button type="button" data-st="${i}" aria-pressed="${i<=stars}" aria-label="${i} из 5">★</button>`).join("")}</div>
+    <label for="rvt">Что понравилось или нет<textarea id="rvt" placeholder="Например: приехал вовремя, помог с багажом"></textarea></label>
+    <button class="btn" id="rvok" type="button">Отправить отзыв</button><button class="btn ghost" id="rvx" type="button">Отмена</button>`;
+    s.querySelectorAll("[data-st]").forEach(x=>x.onclick=()=>{const t=s.querySelector("#rvt").value;stars=+x.dataset.st;draw(s);s.querySelector("#rvt").value=t});
+    s.querySelector("#rvx").onclick=closeSheet;
+    s.querySelector("#rvok").onclick=()=>{const t=s.querySelector("#rvt").value.trim();if(!t){toast("Напишите пару слов о поездке");return}
+      state.reviews.push({to:b.driver,who:state.user.name,stars,text:t,t:Date.now()});b.reviewed=true;save();closeSheet();toast("Спасибо за отзыв!");renderProfile()};
+  };
+  sheet("",draw);
+}
+function verifySheet(){
+  sheet(`<h2>Проверка документов</h2>
+    <p>Проверка займёт пару минут: сфотографируйте паспорт или права и сделайте селфи. Проверку проводит специальный сервис (например, Veriff или Sumsub), а мы получаем только ответ «проверен» или «нет». Сами документы мы не храним.</p>
+    <p class="small muted">После проверки рядом с вашим именем появится значок ${vbadge}. Таким водителям и попутчикам доверяют больше.</p>
+    <button class="btn" id="vok" type="button">Пройти проверку (демо)</button><button class="btn ghost" id="vx" type="button">Позже</button>`,s=>{
+    s.querySelector("#vx").onclick=closeSheet;
+    s.querySelector("#vok").onclick=()=>{state.user.docs=true;save();closeSheet();toast("Готово! Теперь у вас значок «Проверен»");renderProfile()};
+  });
 }
 
 /* ---------- Поделиться приложением ---------- */
