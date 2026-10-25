@@ -1,8 +1,8 @@
-# go&transfer
+# go-transfer-go
 
 Демо-приложение для поездок, посылок и перевозки машин по Европе: вход по номеру телефона, карта маршрутов (OpenStreetMap через MapLibre и OpenFreeMap), маршруты по дорогам (OSRM), поиск адресов (Nominatim), чат с водителем и бронь с сервисным сбором.
 
-Сайт: https://autovinzare-code.github.io/dzhipies/
+Сайт: https://autovinzare-code.github.io/go-transfer-go/ (пока репозиторий не переименован: https://autovinzare-code.github.io/dzhipies/)
 
 Файлы:
 - `index.html` — приложение целиком.
