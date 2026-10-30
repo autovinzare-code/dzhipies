@@ -756,7 +756,7 @@ function bookSheet(id){
   const ks=Object.keys(r.caps).filter(k=>r.caps[k]>0);
   let k=state.kind!=="all"&&r.caps[state.kind]?state.kind:ks[0],qty=k==="parcel"?0:1;
   const draw=s=>{
-    const cost=r.prices[k]*qty,fee=FEE;
+    const cost=r.prices[k]*qty,fee=0;
     s.querySelector(".sheet").innerHTML=`
       <h2>${esc(r.from.name)} → ${esc(r.to.name)}</h2>
       <p class="small muted">${when(r.at).txt} · ${esc(r.driver)}, ${esc(r.vehicle)}</p>
@@ -765,9 +765,9 @@ function bookSheet(id){
       ${k==="car"||k==="drive"?`<label for="carinfo">${k==="drive"?"Какую машину пригнать":"Какая машина"}<input id="carinfo" placeholder="Например: Audi A4, 2019, на ходу"></label>`:""}
       ${k==="drive"?`<p class="small muted">Для перегона понадобятся доверенность на водителя, страховка Green Card и документы на машину.</p>`:""}
       <div class="kv"><span class="muted">Водителю, ориентировочно</span><span>${qty?eur(cost):"—"}</span></div>
-      <div class="kv"><span class="muted">Плата за участие, разовая</span><span>${lei(fee)}</span></div>
-      <p class="small muted">Точную цену вы согласуете с водителем в чате. Плата за участие оплачивается сейчас и подтверждает бронь.</p>
-      <button class="btn" id="pay" type="button">Оплатить ${lei(fee)} и забронировать</button>
+      <div class="kv"><span class="muted">Бронь в приложении</span><span>бесплатно</span></div>
+      <p class="small muted">Точную цену вы согласуете с водителем в чате и платите ему напрямую.</p>
+      <button class="btn" id="pay" type="button">Забронировать</button>
       <button class="btn ghost" id="cl" type="button">Отмена</button>`;
     s.querySelectorAll("#bk button").forEach(b=>b.onclick=()=>{k=b.dataset.k;qty=k==="parcel"?0:1;draw(s)});
     s.querySelector("#qty").oninput=e=>{const v=+e.target.value||0;qty=v?Math.max(1,Math.min(r.caps[k],v)):0;s.querySelector(".kv span:last-child").textContent=qty?eur(r.prices[k]*qty):"—"};
@@ -860,7 +860,7 @@ function renderPublish(){
       <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" inputmode="numeric" min="0" max="10" placeholder="сколько"></label><label for="pc">Ваша цена за авто, €<input id="pc" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
       <div class="row"><label for="cd">Перегон: пригоню авто<input id="cd" type="number" inputmode="numeric" min="0" max="3" placeholder="сколько"></label><label for="pdr">Ваша цена за перегон, €<input id="pdr" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
       <label for="pn">Комментарий<input id="pn" placeholder="Например: остановки в Яссах и Вене"></label>
-      <div class="kv"><span class="muted">Плата за участие, разовая</span><span>${lei(FEE)}</span></div>
+      <div class="kv"><span class="muted">Подача объявления</span><span>${lei(FEE)}</span></div>
       <button class="btn" type="submit">Оплатить ${lei(FEE)} и опубликовать</button>
     </form>`;
   const d=new Date(Date.now()+864e5);$("#pd").value=d.toISOString().slice(0,10);
@@ -929,9 +929,10 @@ function renderProfile(){
       <div class="row"><button class="btn sm" id="usoc" type="button">Сохранить</button><button class="btn ghost sm" type="button" data-person="${esc(state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name)}">Как меня видят</button></div>
     </div>
     ${shareCard()}
-    <div class="card"><h2>Плата за участие</h2>
-      <div class="kv"><span>Каждая бронь или опубликованный маршрут</span><b>${lei(FEE)}</b></div>
-      <p class="small muted">Разовая плата за участие. Без подписок и комиссий. Цену поездки вы согласуете с водителем в чате.</p>
+    <div class="card"><h2>Сколько стоит</h2>
+      <div class="kv"><span>Регистрация, поиск, чат и бронь</span><b>бесплатно</b></div>
+      <div class="kv"><span>Подача объявления (маршрута)</span><b>${lei(FEE)}</b></div>
+      <p class="small muted">Без подписок и комиссий. Цену поездки вы согласуете с водителем в чате.</p>
     </div>
     <div class="card"><h2>Мои брони</h2>
       ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br>${b.reviewed?`<span class="pill ok">Отзыв оставлен</span>`:`<button class="btn ghost sm" type="button" data-rev="${b.id}">Оставить отзыв</button>`}</span></div>`).join("")
@@ -997,9 +998,9 @@ const FAQ=[
   [/посыл|переда/i,"Чтобы отправить посылку, на карте выберите «Посылки», укажите свой город и город получателя. Нажмите «Написать» у ближайшего водителя и договоритесь, где передать коробку."],
   [/перегон|пригна|купил/i,"Купили машину за границей? Выберите «Перегон»: это люди, которые едут туда без своей машины и могут пригнать вашу. Понадобятся доверенность, страховка Green Card и документы на машину."],
   [/трал|эвакуат/i,"Выберите «Трал», чтобы найти перевозчика с автовозом или эвакуатором. Укажите, откуда забрать машину, и забронируйте место на погрузку."],
-  [/цен|плат|деньг|сбор|подпис|стоит|лей/i,"Цену поездки вы согласуете с водителем в чате. За участие в проекте каждый платит 1 лей разово: пассажир или отправитель при брони, водитель при публикации маршрута. Подписок и комиссий нет."],
+  [/цен|плат|деньг|сбор|подпис|стоит|лей/i,"Регистрация, поиск, чат и бронь бесплатные. Платная только подача объявления: 1 лей за маршрут. Цену поездки вы согласуете с водителем в чате."],
   [/опублик|водител|я еду|свою машин|заработ/i,"Если едете сами, откройте вкладку «Я еду», отметьте на карте откуда и куда, укажите свободные места, посылки или трал и нажмите «Опубликовать маршрут»."],
-  [/брон/i,"Нажмите «Забронировать» у поездки, выберите, что нужно, и оплатите 1 лей за участие. Водитель сразу напишет вам в чат."],
+  [/брон/i,"Нажмите «Забронировать» у поездки, выберите, что нужно, и подтвердите бронь, это бесплатно. Водитель сразу напишет вам в чат."],
   [/чат|написа/i,"Нажмите «Написать» у любой поездки или у оранжевой точки. Все переписки лежат во вкладке «Чаты»."],
   [/поезд|ехать|место|попут/i,"Чтобы найти попутку, на карте укажите «Откуда» и «Куда». Ниже появится список ближайших выездов. Нажмите «Написать», договоритесь о цене и забронируйте место."]
 ];
