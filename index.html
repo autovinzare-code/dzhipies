@@ -2,7 +2,7 @@
 <title>go-transfer-go</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Защита: браузер грузит код, стили и данные только с перечисленных адресов (CSP) -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://router.project-osrm.org https://nominatim.openstreetmap.org; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://router.project-osrm.org https://nominatim.openstreetmap.org https://*.supabase.co; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
@@ -250,6 +250,7 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
 <script src="eumap.js"></script>
 <script src="euroads.js"></script>
 <script src="eucities.js"></script>
+<script src="config.js"></script>
 <script>
 (function(){
 const store={
@@ -266,6 +267,35 @@ const CAP_MAX={seat:60,parcel:5000,car:10,drive:3};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const eur=n=>(Math.round(n*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2})+" €";
 const H=36e5;
+
+/* ---------- Сервер: Supabase + вход через Telegram или почту. Пустой config.js = демо-режим ---------- */
+const CFG=window.GTG_CONFIG||{};
+const LIVE=!!(CFG.supabaseUrl&&CFG.supabaseKey&&/^https:\/\//.test(CFG.supabaseUrl));
+const SB=LIVE?String(CFG.supabaseUrl).replace(/\/+$/,""):"";
+function apiErr(status,j){const e=new Error(j&&(j.message||j.msg||j.error_description||j.error)||"server");e.status=status;e.code=j&&(j.code||j.error_code||j.error);return e}
+const errText=e=>e&&/[а-яё]/i.test(e.message||"")?e.message:e&&e.status===429?"Слишком много попыток. Подождите пару минут":"Нет связи с сервером. Попробуйте ещё раз";
+/* Сессия Supabase живёт в localStorage (на GitHub Pages нет своего сервера для cookie). Защита: CSP, esc(), короткий срок жизни токена */
+const api={
+  s:store.get("sess",null),
+  setS(x){this.s=x&&x.access_token?{a:x.access_token,r:x.refresh_token,e:Date.now()+(x.expires_in||3600)*1000}:null;store.set("sess",this.s)},
+  async auth(path,body,tok){const r=await fetch(SB+"/auth/v1/"+path,{method:"POST",headers:{apikey:CFG.supabaseKey,"Content-Type":"application/json",...(tok?{Authorization:"Bearer "+tok}:{})},body:JSON.stringify(body||{})});
+    const j=await r.json().catch(()=>null);if(!r.ok)throw apiErr(r.status,j);return j},
+  async token(){
+    if(this.s&&this.s.e-60000>Date.now())return this.s.a;
+    if(this.s&&this.s.r){try{this.setS(await this.auth("token?grant_type=refresh_token",{refresh_token:this.s.r}));return this.s.a}catch(e){if(!e.status||e.status>=500)throw e;this.setS(null)}}
+    this.setS(await this.auth("signup",{}));return this.s.a}, /* анонимная сессия: её потом привязывает к профилю вход через Telegram */
+  async call(path,opt,again){const t=await this.token();
+    const r=await fetch(SB+path,{...opt,headers:{apikey:CFG.supabaseKey,Authorization:"Bearer "+t,"Content-Type":"application/json",...(opt.headers||{})}});
+    if(r.status===401&&!again&&this.s){this.s.e=0;return this.call(path,opt,true)}
+    const txt=await r.text();let j=null;try{j=txt?JSON.parse(txt):null}catch(e){}
+    if(!r.ok)throw apiErr(r.status,j);return j},
+  get(q){return this.call("/rest/v1/"+q,{method:"GET"})},
+  post(t,b,ret){return this.call("/rest/v1/"+t,{method:"POST",headers:{Prefer:ret?"return=representation":"return=minimal"},body:JSON.stringify(b)})},
+  patch(q,b){return this.call("/rest/v1/"+q,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(b)})},
+  del(q){return this.call("/rest/v1/"+q,{method:"DELETE"})},
+  rpc(f,a){return this.call("/rest/v1/rpc/"+f,{method:"POST",body:JSON.stringify(a||{})})},
+  fn(action,x){return this.call("/functions/v1/tg-login",{method:"POST",body:JSON.stringify({action,...x})})}
+};
 
 /* Города: [широта, долгота, страна] */
 const CITIES={
@@ -337,15 +367,15 @@ const lei=n=>n+" "+(n%10===1&&n%100!==11?"лей":n%10>=2&&n%10<=4&&(n%100<10||n
 let state={
   user:store.get("user",null),
   tab:store.get("tab","map"),
-  routes:store.get("routes",[]).length?store.get("routes",[]):seedRoutes,
-  chats:store.get("chats",[]),
-  bookings:store.get("bookings",[]),
+  routes:LIVE?[]:store.get("routes",[]).length?store.get("routes",[]):seedRoutes,
+  chats:LIVE?[]:store.get("chats",[]),
+  bookings:LIVE?[]:store.get("bookings",[]),
   maxp:null,
-  requests:store.get("requests",[]).length?store.get("requests",[]):seedReqs(),
+  requests:LIVE?[]:store.get("requests",[]).length?store.get("requests",[]):seedReqs(),
   seenIntro:store.get("seenIntro",false),
   support:store.get("support",[]),
   shared:store.get("shared",false),
-  reviews:store.get("reviews",[]),
+  reviews:LIVE?[]:store.get("reviews",[]),
   kind:"all",
   A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A",vt:"car"},
@@ -353,7 +383,10 @@ let state={
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
   openChat:null
 };
-const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("requests",state.requests);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared);store.set("reviews",state.reviews)};
+/* В рабочем режиме маршруты, брони и чаты живут на сервере, в браузер они не сохраняются */
+const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.set("seenIntro",state.seenIntro);store.set("support",state.support);store.set("shared",state.shared);
+  if(!LIVE){store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("requests",state.requests);store.set("reviews",state.reviews)}};
+if(LIVE&&state.user&&!state.user.id)state.user=null;
 
 function doneSheet(title,text){sheet(`<div class="done"><div class="big" aria-hidden="true">✓</div><h2>${esc(title)}</h2>${text?`<p class="small muted">${esc(text)}</p>`:""}</div><button class="btn" id="dok" type="button">Хорошо</button>`,s=>{s.querySelector("#dok").onclick=closeSheet;s.querySelector("#dok").focus()})}
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
@@ -371,6 +404,7 @@ function sheet(html,bind){closeSheet();const s=document.createElement("div");s.c
 
 /* ---------- Вход по телефону ---------- */
 function renderAuth(){
+  if(LIVE)return renderAuthLive();
   const a=state.auth;$("#tabs").hidden=true;$("#who").innerHTML="";
   if(a.step==="phone"){
     view.innerHTML=`<h1>Вход по номеру телефона</h1>
@@ -399,6 +433,167 @@ function renderAuth(){
     $("#f").onsubmit=e=>{e.preventDefault();state.user={name:clip($("#name").value,60)||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
   }
 }
+
+/* ---------- Рабочий режим: вход через Telegram или почту ---------- */
+const live={people:{},byName:{},photos:{},poll:null,tick:null,n:0,sig:""};
+const EXTRA_KEYS=["photo","ltype","cname","idno","cphone","cphone2","fax","email","ig","fb"];
+const pickExtra=o=>{const x={};EXTRA_KEYS.forEach(k=>{if(o[k]!=null&&o[k]!=="")x[k]=k==="photo"?safeImg(o[k])||undefined:clip(o[k],200)});return x};
+function userFromProfile(p){const x=p.extra&&typeof p.extra==="object"&&!Array.isArray(p.extra)?p.extra:{};
+  return {...pickExtra(x),id:p.id,name:clip(p.name,60),phone:p.phone||"",phoneOk:!!p.phone_ok,loginEmail:p.email||"",docs:!!p.verified}}
+const pushProfile=()=>api.patch("profiles?id=eq."+state.user.id,{name:state.user.name,extra:pickExtra(state.user)});
+function stopTgPoll(){if(live.poll){clearInterval(live.poll);live.poll=null}}
+async function finishLogin(){
+  const p=await api.rpc("my_profile");if(!p||!p.id)throw new Error("no profile");
+  const u=userFromProfile(p);
+  if(!u.name){state.auth.prof=u;state.auth.step="name";render();return}
+  enterLive(u);
+}
+function enterLive(u){state.user=u;state.auth={step:"start"};save();render();toast(u.phoneOk?"Номер подтверждён":"Вы вошли");startLive()}
+function renderAuthLive(){
+  const a=state.auth;$("#tabs").hidden=true;$("#who").innerHTML="";
+  if(a.step!=="tg")stopTgPoll();
+  const busy=(b,on)=>{b.disabled=on;b.setAttribute("aria-busy",on)};
+  if(a.step==="tg"&&a.tg){
+    view.innerHTML=`<h1>Подтвердите вход в Telegram</h1>
+      <div class="card"><ol class="small" style="margin:0;padding-left:20px;display:grid;gap:6px">
+        <li>Нажмите кнопку ниже, откроется наш бот в Telegram.</li><li>Нажмите «Старт» (Start).</li>
+        <li>Первый раз нажмите «Поделиться номером», дальше просто «Да, это я».</li></ol>
+        <div class="kv"><span class="muted">Код сверки</span><b class="mono" style="font-size:22px;letter-spacing:4px">${esc(a.tg.code)}</b></div>
+        <p class="small muted">Бот покажет такой же код. Если код другой, ничего не подтверждайте.</p>
+        <a class="btn" href="${esc(a.tg.link)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;text-align:center;display:block">Открыть Telegram</a>
+        <p class="small muted" id="tgst" role="status">Ждём подтверждения…</p></div>
+      <button class="btn ghost" id="back" type="button">Назад</button>`;
+    $("#back").onclick=()=>{a.step="start";render()};
+    if(!live.poll){const till=Date.now()+(a.tg.ttl||600)*1000;
+      live.poll=setInterval(async()=>{
+        if(state.auth.step!=="tg"||Date.now()>till){stopTgPoll();if(state.auth.step==="tg"){a.step="start";render();toast("Время вышло. Нажмите «Войти через Telegram» ещё раз")}return}
+        let r;try{r=await api.fn("check",{token:a.tg.token})}catch(e){return}
+        if(state.auth.step!=="tg")return;
+        if(r.status==="wait"&&$("#tgst"))$("#tgst").textContent="Бот открыт. Подтвердите вход в Telegram…";
+        else if(r.status==="denied"){stopTgPoll();a.step="start";render();toast("Вход отменён в Telegram")}
+        else if(r.status==="expired"){stopTgPoll();a.step="start";render();toast("Ссылка устарела, попробуйте ещё раз")}
+        else if(r.status==="ok"){stopTgPoll();try{await finishLogin()}catch(e){toast(errText(e))}}
+      },2500)}
+  }else if(a.step==="email"){
+    view.innerHTML=`<h1>Вход по почте</h1><p class="muted">Пришлём на почту код из 6 цифр. Пароль не нужен.</p>
+      <form class="card" id="f"><label for="em">Электронная почта<input id="em" type="email" inputmode="email" autocomplete="email" required value="${esc(a.email||"")}"></label>
+      <button class="btn" type="submit">Получить код</button>
+      <p class="small muted">При входе по почте номер телефона не проверяется. Водители и пассажиры увидят, что номер не подтверждён.</p></form>
+      <button class="btn ghost" id="back" type="button">Назад</button>`;
+    $("#back").onclick=()=>{a.step="start";render()};
+    $("#f").onsubmit=async e=>{e.preventDefault();const v=clip($("#em").value,200).toLowerCase(),b=$("#f button");
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast("Проверьте почту: в ней должны быть @ и точка");return}
+      busy(b,true);try{await api.auth("otp",{email:v,create_user:true});a.email=v;a.step="email-code";render()}
+      catch(e){busy(b,false);toast(e.status===429?"Код уже отправлен. Подождите минуту и попробуйте снова":"Не удалось отправить письмо. Попробуйте позже")}};
+  }else if(a.step==="email-code"){
+    view.innerHTML=`<h1>Введите код из письма</h1><p class="muted">Отправили на <b>${esc(a.email)}</b>. Если письма нет, проверьте папку «Спам».</p>
+      <form class="card" id="f"><label for="oc">Код<input id="oc" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required class="mono" style="font-size:22px;letter-spacing:4px"></label>
+      <button class="btn" type="submit">Войти</button></form>
+      <button class="btn ghost" id="back" type="button">Изменить почту</button>`;
+    $("#back").onclick=()=>{a.step="email";render()};
+    $("#f").onsubmit=async e=>{e.preventDefault();const code=$("#oc").value.replace(/\D/g,""),b=$("#f button");
+      if(code.length<6){toast("Впишите все цифры из письма");return}
+      busy(b,true);try{api.setS(await api.auth("verify",{type:"email",email:a.email,token:code}));await api.rpc("link_email");await finishLogin()}
+      catch(e){busy(b,false);toast(e.status===429?"Слишком много попыток. Подождите пару минут":"Код не подошёл или устарел. Проверьте цифры")}};
+  }else if(a.step==="name"&&a.prof){
+    const u=a.prof;
+    view.innerHTML=`<h1>Как вас зовут?</h1><p class="muted">Имя увидят водители и пассажиры в чате.</p>
+      <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" required></label>
+      ${u.phoneOk?"":`<label for="ph">Телефон (необязательно)<input id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="+373 69 123 456"></label><p class="small muted">Номер увидит только тот, с кем у вас будет бронь.</p>`}
+      <button class="btn" type="submit">Готово</button></form>`;
+    $("#f").onsubmit=async e=>{e.preventDefault();const n=clip($("#name").value,60),ph=$("#ph")?$("#ph").value.trim():"",b=$("#f button");if(!n){toast("Впишите имя");return}
+      if(ph&&ph.replace(/\D/g,"").length<8){toast("Проверьте номер: нужен код страны и номер");return}
+      busy(b,true);try{u.name=n;await api.patch("profiles?id=eq."+u.id,{name:n});if(ph){await api.rpc("set_phone",{p:ph});u.phone="+"+ph.replace(/\D/g,"")}enterLive(u)}
+      catch(e){busy(b,false);toast(errText(e))}};
+  }else{
+    view.innerHTML=`<h1>Вход</h1>
+      <p class="muted">Попутчики, посылки и перевозка машин по всей Европе. Бесплатно и без пароля: номер телефона подтвердим через Telegram.</p>
+      <div class="card"><button class="btn" id="tgo" type="button">Войти через Telegram</button>
+      <p class="small muted">Мы получим только ваш номер и имя из Telegram. Номер увидит лишь тот, с кем у вас будет бронь.</p></div>
+      <button class="btn ghost" id="em" type="button">Нет Telegram? Войти по почте</button>`;
+    $("#em").onclick=()=>{a.step="email";render()};
+    $("#tgo").onclick=async()=>{const b=$("#tgo");busy(b,true);
+      try{a.tg=await api.fn("start");a.step="tg";render()}
+      catch(e){busy(b,false);toast(e.status===429?"Слишком много попыток. Подождите 10 минут":e.code==="anonymous_provider_disabled"?"Сервер ещё не настроен: включите анонимный вход в Supabase":"Не удалось связаться с сервером. Попробуйте ещё раз")}};
+  }
+}
+
+/* ---------- Рабочий режим: загрузка данных с сервера ---------- */
+const num=v=>Number.isFinite(+v)&&+v>=0?+v:0;
+const okPt=p=>p&&typeof p==="object"&&Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)?{name:clip(p.name,120),lat:+p.lat,lon:+p.lon}:null;
+const pname=id=>{const P=live.people[id];if(!P)return "Пользователь";const x=P.extra||{};return clip(x.ltype==="company"&&x.cname?x.cname:P.name,100)||"Пользователь"};
+function routeFromRow(x){const d=x.data||{},caps={},prices={};
+  Object.keys(KINDS).forEach(k=>{if(x.caps&&x.caps[k]!=null){caps[k]=num(x.caps[k]);prices[k]=num(d.prices&&d.prices[k])}});
+  const from=okPt(d.from),to=okPt(d.to),m=d.meet&&typeof d.meet==="object"?d.meet:null;
+  return {id:x.id,owner:x.owner,mine:!!state.user&&x.owner===state.user.id,from,to,at:Date.parse(x.at),caps,prices,driver:clip(d.driver,100)||"Водитель",
+    vehicle:clip(d.vehicle,80),note:clip(d.note,300),vt:VT[d.vt]?d.vt:null,carrier:d.carrier==="bus"?"bus":"private",hasPhoto:!!x.has_photo,photo:live.photos[x.id]||null,
+    meet:m?{city:clip(m.city,80),street:clip(m.street,120),lat:Number.isFinite(+m.lat)?+m.lat:from.lat,lon:Number.isFinite(+m.lon)?+m.lon:from.lon}:null}}
+function reqFromRow(x){const d=x.data||{};return {id:x.id,owner:x.owner,mine:!!state.user&&x.owner===state.user.id,from:okPt(d.from),to:okPt(d.to),at:Date.parse(x.at),
+  name:clip(d.name,100)||"Пользователь",people:Math.min(9,Math.max(1,Math.round(num(d.people))||1)),kind:WANT[d.kind]?d.kind:"seat",note:clip(d.note,300)}}
+async function loadPeople(ids){
+  const need=[...new Set(ids)].filter(id=>id&&!live.people[id]);
+  for(let i=0;i<need.length;i+=80){const rows=await api.get("profiles?select=id,name,verified,phone_ok,extra,created_at&id=in.("+need.slice(i,i+80).join(",")+")");
+    rows.forEach(p=>{live.people[p.id]=p})}
+  live.byName={};Object.keys(live.people).forEach(id=>{live.byName[pname(id)]=live.people[id]});
+}
+async function loadPhotos(rs){
+  const need=rs.filter(r=>r.has_photo&&!(r.id in live.photos)).map(r=>r.id);
+  for(let i=0;i<need.length;i+=10){const rows=await api.get("routes?select=id,photo&id=in.("+need.slice(i,i+10).join(",")+")");rows.forEach(r=>{live.photos[r.id]=safeImg(r.photo)||null})}
+}
+function buildChats(ms){const me=state.user.id,map={},old={};state.chats.forEach(c=>old[c.id]=c);
+  for(const m of ms){const out=m.sender===me,peer=out?m.recipient:m.sender,key=(m.route_id||"")+"|"+(m.request_id||"")+"|"+peer;
+    const c=map[key]||(map[key]={id:key,route:m.route_id,req:m.request_id,peer,with:pname(peer),title:"",msgs:[],unread:0,unreadIds:[],last:0,draft:old[key]&&old[key].draft||""});
+    const t=Date.parse(m.created_at);c.msgs.push({me:out,text:clip(m.body,1000),t});c.last=t;if(m.title)c.title=clip(m.title,200);
+    if(!out&&!m.read_at){c.unread++;c.unreadIds.push(m.id)}}
+  const local=state.chats.filter(c=>!c.msgs.length&&!map[c.id]);
+  state.chats=[...local,...Object.values(map).sort((a,b)=>b.last-a.last)];
+}
+async function loadMsgs(){
+  const ms=(await api.get("messages?select=id,sender,recipient,route_id,request_id,title,body,read_at,created_at&order=created_at.desc&limit=1000")).reverse();
+  await loadPeople(ms.map(m=>m.sender===state.user.id?m.recipient:m.sender));buildChats(ms);
+}
+async function loadAll(){
+  const iso=t=>new Date(t).toISOString();
+  const [rs,qs,bs,rv]=await Promise.all([
+    api.get("routes?select=id,owner,at,caps,data,has_photo&at=gte."+iso(Date.now()-2*H)+"&order=at.asc&limit=500"),
+    api.get("requests?select=id,owner,at,data&at=gte."+iso(Date.now()-24*H)+"&order=at.asc&limit=500"),
+    api.get("bookings?select=*&order=created_at.desc&limit=200"),
+    api.get("reviews?select=id,booking_id,author_name,target,target_name,stars,body,created_at&order=created_at.desc&limit=1000")]);
+  await loadPeople([...rs.map(r=>r.owner),...qs.map(q=>q.owner),...rv.map(r=>r.target)]);
+  await loadPhotos(rs);
+  state.routes=rs.map(routeFromRow).filter(r=>r.from&&r.to);
+  state.requests=qs.map(reqFromRow).filter(q=>q.from&&q.to);
+  state.reviews=rv.map(r=>({to:r.target_name,who:r.author_name,stars:Math.min(5,Math.max(1,r.stars|0)),text:clip(r.body,1000),t:Date.parse(r.created_at),booking:r.booking_id}));
+  const me=state.user.id;
+  state.bookings=bs.map(b=>{const d=b.data||{};return {id:b.id,route:b.route_id,title:clip(d.title,200),kind:b.kind,qty:b.qty,cost:num(d.cost),at:Date.parse(d.at),
+    driver:clip(d.driver,100),passenger:clip(d.passenger,100),asDriver:b.driver===me,reviewed:state.reviews.some(r=>r.booking===b.id)}});
+  await loadMsgs();
+}
+/* Обновление: чат каждые 5 секунд, когда он открыт; остальное раз в минуту */
+async function syncLive(full){
+  if(!state.user||document.hidden)return;
+  try{if(full)await loadAll();else await loadMsgs()}catch(e){if(e.status===401||e.status===403)liveLogout(true);return}
+  updateBadge();
+  if(state.tab!=="chats"||$(".scrim"))return;
+  const sig=state.chats.map(c=>c.id+":"+c.msgs.length+":"+c.unread).join();if(sig===live.sig)return;live.sig=sig;
+  if(state.openChat){const c=state.chats.find(x=>x.id===state.openChat);if(!c)return;const ci=$("#ci"),f=document.activeElement===ci;c.draft=ci?ci.value:c.draft;renderChat(c);if(f&&$("#ci"))$("#ci").focus()}
+  else renderChats();
+}
+async function startLive(){
+  try{const p=await api.rpc("my_profile");if(!p||!p.id)return liveLogout(true);Object.assign(state.user,userFromProfile(p));save();await loadAll()}
+  catch(e){if(e.status===401||e.status===403)return liveLogout(true);toast("Нет связи с сервером. Данные обновятся позже")}
+  render();
+  clearInterval(live.tick);live.n=0;
+  live.tick=setInterval(()=>{live.n++;if(live.n%12===0)syncLive(true);else if(state.tab==="chats"||live.n%3===0)syncLive(false)},5000);
+}
+async function liveLogout(expired,msg){
+  clearInterval(live.tick);stopTgPoll();
+  if(!expired){try{await api.del("sessions?uid=not.is.null")}catch(e){}try{if(api.s)await api.auth("logout",{},api.s.a)}catch(e){}}
+  api.setS(null);Object.assign(live,{people:{},byName:{},photos:{},sig:""});
+  Object.assign(state,{user:null,routes:[],requests:[],chats:[],bookings:[],reviews:[],openChat:null,auth:{step:"start"}});save();render();
+  if(msg||expired)toast(msg||"Сессия закончилась, войдите ещё раз");
+}
+const liveFail=e=>{toast(errText(e));return null};
 
 /* ---------- Карта ---------- */
 let mapCtx=null;
@@ -704,7 +899,7 @@ function waitSheet(h){
     <button class="btn ghost" type="button" id="wX">Закрыть</button>`,s=>{
     s.querySelector("#wX").onclick=closeSheet;
     s.querySelectorAll("[data-wq]").forEach(b=>b.onclick=()=>openReqChat(b.dataset.wq));
-    s.querySelectorAll("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();closeSheet();toast("Точка ожидания убрана");render()});
+    s.querySelectorAll("[data-delq]").forEach(b=>b.onclick=()=>{if(LIVE){delReq(b.dataset.delq,()=>{closeSheet();render()});return}state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();closeSheet();toast("Точка ожидания убрана");render()});
     s.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{const to=reqs.find(q=>q.to.name===b.dataset.go).to;state.pub.A={name:h.name,lat:h.lat,lon:h.lon};state.pub.B=to;state.pub.pick=null;state.tab="publish";save();render()});
   });
 }
@@ -722,13 +917,18 @@ function newWaitSheet(){
     <button class="btn ghost" id="wcl" type="button">Отмена</button>`,s=>{
     s.querySelector("#wcl").onclick=closeSheet;
     s.querySelector("#wok").onclick=()=>{
+      if(LIVE){const kd=s.querySelector("#wk").value,at=new Date(s.querySelector("#wd").value+"T09:00").getTime();
+        if(!Number.isFinite(at)){toast("Проверьте дату");return}
+        api.post("requests",{at:new Date(at).toISOString(),data:{from:okPt(A),to:okPt(B),kind:WANT[kd]?kd:"seat",people:Math.min(9,Math.max(1,Math.round(+s.querySelector("#wp").value)||1)),note:clip(s.querySelector("#wn").value,300)}})
+          .then(()=>loadAll()).then(()=>{closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap()},liveFail);return}
       state.requests.push({id:"q"+Date.now(),from:A,to:B,at:new Date(s.querySelector("#wd").value+"T09:00").getTime(),name:state.user.name,people:Math.min(9,Math.max(1,Math.round(+s.querySelector("#wp").value)||1)),kind:WANT[s.querySelector("#wk").value]?s.querySelector("#wk").value:"seat",note:clip(s.querySelector("#wn").value,300),mine:true});
       save();closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap();
     };
   });
 }
-function openReqChat(id){const q=state.requests.find(x=>x.id===id);let c=state.chats.find(x=>x.req===id);
-  if(!c){c={id:"c"+Date.now(),req:id,with:q.name,title:`Ищет: ${q.from.name} → ${q.to.name}`,msgs:[],unread:0};state.chats.unshift(c);
+function delReq(id,then){api.del("requests?id=eq."+id).then(()=>{state.requests=state.requests.filter(q=>q.id!==id);toast("Точка ожидания убрана");then()},liveFail)}
+function openReqChat(id){const q=state.requests.find(x=>x.id===id);let c=state.chats.find(x=>x.req===id&&(!LIVE||x.peer===q.owner));
+  if(!c){c={id:LIVE?"|"+id+"|"+q.owner:"c"+Date.now(),req:id,peer:q.owner,with:q.name,title:`Ищет: ${q.from.name} → ${q.to.name}`,msgs:[],unread:0};state.chats.unshift(c);
     c.draft=`Здравствуйте! Я еду ${q.from.name} → ${q.to.name} ${when(q.at).txt.split(",")[0]}. Могу взять${q.kind==="seat"?" вас":""}. Обсудим цену?`}
   save();state.openChat=c.id;state.tab="chats";render()}
 function capPills(r){return Object.entries(r.caps).filter(([,v])=>v>0).map(([k,v])=>`<span class="pill"><i class="dot" style="background:var(${KINDS[k].color})"></i>${KINDS[k].t}: ${v} ${KINDS[k].unit} · от ${eur(r.prices[k])} ${KINDS[k].price}</span>`).join("")}
@@ -775,6 +975,9 @@ function bookSheet(id){
     s.querySelector("#pay").onclick=()=>{
       const qv=+s.querySelector("#qty").value||0;if(qv<=0){toast(k==="parcel"?"Впишите вес посылки":"Впишите количество");s.querySelector("#qty").focus();return}
       qty=Math.max(1,Math.min(r.caps[k],qv));
+      if(LIVE){const b=s.querySelector("#pay"),ci=s.querySelector("#carinfo");b.disabled=true;
+        api.rpc("book_route",{p_route:r.id,p_kind:k,p_qty:qty,p_info:ci?clip(ci.value,200):""}).then(()=>loadAll())
+          .then(()=>{closeSheet();toast("Забронировано. Водитель получил сообщение в чате");updateBadge();if(state.tab==="map")renderMap()},e=>{b.disabled=false;toast(errText(e))});return}
       r.caps[k]-=qty;
       state.bookings.unshift({id:"B-"+Math.floor(1e4+Math.random()*9e4),route:r.id,title:`${r.from.name} → ${r.to.name}`,kind:k,qty,cost:r.prices[k]*qty,fee,at:r.at,driver:r.driver});
       const c=chatFor(r);c.msgs.push({me:false,text:`Бронь подтверждена: ${KINDS[k].t.toLowerCase()}, ${qty} ${KINDS[k].unit}. Напишите, где удобно встретиться.`,t:Date.now()});c.unread=(c.unread||0)+1;
@@ -785,7 +988,7 @@ function bookSheet(id){
 }
 
 /* ---------- Чаты ---------- */
-function chatFor(r){let c=state.chats.find(x=>x.route===r.id);if(!c){c={id:"c"+Date.now(),route:r.id,with:r.driver,title:`${r.from.name} → ${r.to.name}`,msgs:[],unread:0};state.chats.unshift(c)}return c}
+function chatFor(r){let c=state.chats.find(x=>x.route===r.id&&(!LIVE||x.peer===r.owner));if(!c){c={id:LIVE?r.id+"||"+r.owner:"c"+Date.now(),route:r.id,peer:r.owner,with:r.driver,title:`${r.from.name} → ${r.to.name}`,msgs:[],unread:0};state.chats.unshift(c)}return c}
 function openChatFor(id){const r=state.routes.find(x=>x.id===id);const c=chatFor(r);
   if(!c.msgs.length){const k=state.kind!=="all"?state.kind:mainKind(r);
     c.draft=k==="parcel"?`Здравствуйте! Хочу передать посылку из ${state.A&&state.A.name.indexOf("Точка")<0?state.A.name:r.from.name} в ${r.to.name}. Примерно 5 кг. Когда и где можно отдать?`
@@ -808,6 +1011,7 @@ function renderChats(){
   $$("[data-c]").forEach(b=>b.onclick=()=>{state.openChat=b.dataset.c;renderChats()});
 }
 function renderChat(c){
+  if(LIVE&&c.unreadIds&&c.unreadIds.length){api.patch("messages?id=in.("+c.unreadIds.join(",")+")",{read_at:new Date().toISOString()}).catch(()=>{});c.unreadIds=[]}
   c.unread=0;save();updateBadge();
   const r=state.routes.find(x=>x.id===c.route);
   const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
@@ -818,7 +1022,11 @@ function renderChat(c){
   c.draft="";
   $("#bk").onclick=()=>{state.openChat=null;renderChats()};
   if($("#bkr"))$("#bkr").onclick=()=>bookSheet(r.id);
-  $("#cf").onsubmit=e=>{e.preventDefault();const v=clip($("#ci").value,1000);if(!v)return;c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
+  $("#cf").onsubmit=e=>{e.preventDefault();const v=clip($("#ci").value,1000);if(!v)return;
+    if(LIVE){const ci=$("#ci");ci.disabled=true;
+      api.post("messages",{recipient:c.peer,route_id:c.route||null,request_id:c.req||null,title:clip(c.title,200),body:v})
+        .then(()=>{c.msgs.push({me:true,text:v,t:Date.now()});c.draft="";renderChat(c);$("#ci").focus();loadMsgs().catch(()=>{})},e=>{ci.disabled=false;toast(errText(e))});return}
+    c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
     const k=r?mainKind(r):"seat";const pool=c.req?REPLIES.req:/пригна|перегон/i.test(v)?REPLIES.drive:/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
     const n=c.msgs.filter(m=>!m.me).length;
     setTimeout(()=>{c.msgs.push({me:false,text:pool[n%pool.length],t:Date.now()});if(state.openChat===c.id&&state.tab==="chats")renderChat(c);else{c.unread=(c.unread||0)+1;updateBadge()}save()},1400)};
@@ -860,8 +1068,9 @@ function renderPublish(){
       <div class="row"><label for="cc">Места на трале, авто<input id="cc" type="number" inputmode="numeric" min="0" max="10" placeholder="сколько"></label><label for="pc">Ваша цена за авто, €<input id="pc" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
       <div class="row"><label for="cd">Перегон: пригоню авто<input id="cd" type="number" inputmode="numeric" min="0" max="3" placeholder="сколько"></label><label for="pdr">Ваша цена за перегон, €<input id="pdr" type="number" inputmode="decimal" min="0" step="any" placeholder="впишите цену"></label></div>
       <label for="pn">Комментарий<input id="pn" placeholder="Например: остановки в Яссах и Вене"></label>
-      <div class="kv"><span class="muted">Подача объявления</span><span>${lei(FEE)}</span></div>
-      <button class="btn" type="submit">Оплатить ${lei(FEE)} и опубликовать</button>
+      <div class="kv"><span class="muted">Подача объявления</span><span>${LIVE?"пока бесплатно":lei(FEE)}</span></div>
+      ${LIVE?`<p class="small muted">Плата ${lei(FEE)} за объявление начнёт действовать, когда подключим оплату картой.</p>`:""}
+      <button class="btn" type="submit">${LIVE?"Опубликовать":`Оплатить ${lei(FEE)} и опубликовать`}</button>
     </form>`;
   const d=new Date(Date.now()+864e5);$("#pd").value=d.toISOString().slice(0,10);
   Object.entries(p.form).forEach(([id,v])=>{const el=document.getElementById(id);if(el&&el.closest("#pf"))el.value=v});
@@ -901,6 +1110,11 @@ function renderPublish(){
     if(!Number.isFinite(at)||at<Date.now()-H){toast("Проверьте дату и время выезда");$("#pd").focus();return}
     const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:clip($("#pcity").value,80)||p.A.name,street:clip($("#pstreet").value,120),lat:mp.lat,lon:mp.lon};
     const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?(clip($("#pv").value,80)||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:clip($("#pn").value,300),mine:true};
+    if(LIVE){const b=$("#pf button[type=submit]");b.disabled=true;
+      api.post("routes",{at:new Date(at).toISOString(),caps,photo:safeImg(r.photo)||null,data:{from:okPt(r.from),to:okPt(r.to),meet,vt,carrier:r.carrier,vehicle:r.vehicle,prices,note:r.note}},true)
+        .then(rows=>{live.photos[rows[0].id]=safeImg(r.photo)||null;return loadAll().then(()=>rows[0].id)})
+        .then(id=>{state.A=p.A;state.B=p.B;state.kind="all";state.sel=id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};save();
+          toast("Маршрут опубликован. Ждите сообщений от пассажиров");render()},e=>{b.disabled=false;toast(errText(e))});return}
     state.routes.push(r);save();
     state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
@@ -911,12 +1125,14 @@ function renderPublish(){
 function renderProfile(){
   const bs=state.bookings;
   view.innerHTML=`<h1>${esc(state.user.name)}</h1>
-    <p class="muted mono">${esc(state.user.phone)}</p>
+    <p class="muted mono">${esc(LIVE&&!state.user.phone?state.user.loginEmail:state.user.phone)}</p>
     <div class="card"><div style="display:flex;gap:12px;align-items:center"><span class="ava big">${safeImg(state.user.photo)?`<img src="${safeImg(state.user.photo)}" alt="Ваше фото">`:esc(state.user.name[0])}</span>
         <div><h2>Мой профиль ${state.user.docs?vbadge:""}</h2><p class="small muted">${ratingTxt(person(state.user.name))}</p></div></div>
-      <div class="trust"><span><b class="y">✓</b>Номер телефона подтверждён</span>
+      <div class="trust">${!LIVE||state.user.phoneOk?`<span><b class="y">✓</b>Номер телефона подтверждён</span>`:`<span><b class="y">✓</b>Почта подтверждена</span><span><b class="n">–</b>Номер телефона не подтверждён</span>`}
         <span><b class="${state.user.photo?"y":"n"}">${state.user.photo?"✓":"–"}</b>Фото профиля <label class="btn ghost sm filebtn" for="uphoto" style="margin-left:auto">${state.user.photo?"Заменить":"Добавить"}<input id="uphoto" type="file" accept="image/*"></label></span>
         <span><b class="${state.user.docs?"y":"n"}">${state.user.docs?"✓":"–"}</b>${state.user.docs?"Документы проверены":"Документы не проверены"} ${state.user.docs?"":`<button class="btn sm" id="uverify" type="button" style="margin-left:auto">Пройти проверку</button>`}</span></div>
+      ${LIVE?`<label for="uname">Имя<input id="uname" autocomplete="given-name" value="${esc(state.user.name)}"></label>`:""}
+      ${LIVE&&!state.user.phoneOk?`<label for="uphone">Телефон<input id="uphone" type="tel" inputmode="tel" value="${esc(state.user.phone||"")}" placeholder="+373 69 123 456"></label><p class="small muted">Номер увидит только тот, с кем у вас бронь. Подтвердить номер можно, войдя через Telegram.</p>`:""}
       <div><p class="small muted" style="margin-bottom:6px">Кто вы</p><div class="seg" id="ltype"><button type="button" data-l="person" aria-pressed="${state.user.ltype!=="company"}">Физическое лицо</button><button type="button" data-l="company" aria-pressed="${state.user.ltype==="company"}">Юридическое лицо</button></div></div>
       ${state.user.ltype==="company"?`<p class="small muted">Для перевозчиков, автобусов и маршруток. Рядом с названием появится значок «Компания», а контакты увидят все пассажиры.</p>
         <label for="ucname">Название компании<input id="ucname" value="${esc(state.user.cname||"")}" placeholder="Например: Trans Nord SRL"></label>
@@ -931,23 +1147,24 @@ function renderProfile(){
     ${shareCard()}
     <div class="card"><h2>Сколько стоит</h2>
       <div class="kv"><span>Регистрация, поиск, чат и бронь</span><b>бесплатно</b></div>
-      <div class="kv"><span>Подача объявления (маршрута)</span><b>${lei(FEE)}</b></div>
+      <div class="kv"><span>Подача объявления (маршрута)</span><b>${LIVE?"пока бесплатно":lei(FEE)}</b></div>
       <p class="small muted">Без подписок и комиссий. Цену поездки вы согласуете с водителем в чате.</p>
     </div>
     <div class="card"><h2>Мои брони</h2>
-      ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${esc(b.driver)} · ${when(b.at).txt}</span></span><span>${eur(b.cost)}<br>${b.reviewed?`<span class="pill ok">Отзыв оставлен</span>`:`<button class="btn ghost sm" type="button" data-rev="${b.id}">Оставить отзыв</button>`}</span></div>`).join("")
+      ${bs.length?bs.map(b=>`<div class="kv"><span>${esc(b.title)}<br><span class="small muted">${KINDS[b.kind].t}: ${b.qty} ${KINDS[b.kind].unit} · ${b.asDriver?"у вас забронировал(а) "+esc(b.passenger):esc(b.driver)} · ${when(b.at).txt}</span>${LIVE?`<br><button class="btn ghost sm" type="button" data-bphone="${esc(b.id)}">Показать телефон</button>`:""}</span><span>${eur(b.cost)}<br>${b.asDriver?"":b.reviewed?`<span class="pill ok">Отзыв оставлен</span>`:`<button class="btn ghost sm" type="button" data-rev="${esc(b.id)}">Оставить отзыв</button>`}</span></div>`).join("")
         :`<p class="small muted">Пока нет броней. Найдите маршрут на карте и нажмите «Забронировать».</p>`}
     </div>
     <div class="card"><h2>Мои маршруты</h2>
-      ${state.routes.filter(r=>r.mine).map(r=>`<div class="kv"><span>${esc(r.from.name)} → ${esc(r.to.name)}<br><span class="small muted">${when(r.at).txt}</span></span><span class="small">${Object.entries(r.caps).map(([k,v])=>v+" "+KINDS[k].unit).join(", ")}</span></div>`).join("")||`<p class="small muted">Едете сами? Опубликуйте маршрут во вкладке «Я еду».</p>`}
+      ${state.routes.filter(r=>r.mine).map(r=>`<div class="kv"><span>${esc(r.from.name)} → ${esc(r.to.name)}<br><span class="small muted">${when(r.at).txt}</span></span><span class="small">${Object.entries(r.caps).map(([k,v])=>v+" "+KINDS[k].unit).join(", ")}${LIVE?`<br><button class="btn ghost sm" type="button" data-delr="${esc(r.id)}">Снять</button>`:""}</span></div>`).join("")||`<p class="small muted">Едете сами? Опубликуйте маршрут во вкладке «Я еду».</p>`}
     </div>
     <div class="card"><h2>Мои точки ожидания</h2>
       ${state.requests.filter(q=>q.mine).map(q=>`<div class="kv"><span>${esc(q.from.name)} → ${esc(q.to.name)}<br><span class="small muted">${WANT[q.kind]} · ${when(q.at).txt}</span></span><button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button></div>`).join("")||`<p class="small muted">Не нашли транспорт? На карте нажмите «Поставить точку ожидания».</p>`}
     </div>
     <button class="btn ghost" id="reintro" type="button">Как пользоваться приложением</button>
     <button class="btn ghost" id="out" type="button">Выйти</button>
-    <button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`;
-  $$("[data-delq]").forEach(b=>b.onclick=()=>{state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
+    ${LIVE?`<button class="btn ghost" id="outall" type="button">Выйти на всех устройствах</button><button class="btn ghost" id="delacc" type="button">Удалить аккаунт и все данные</button>`
+      :`<button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`}`;
+  $$("[data-delq]").forEach(b=>b.onclick=()=>{if(LIVE){delReq(b.dataset.delq,renderProfile);return}state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
   $("#reintro").onclick=()=>showIntro(0);bindShare();
   $$("[data-rev]").forEach(x=>x.onclick=()=>reviewSheet(state.bookings.find(b=>b.id===x.dataset.rev)));
   if($("#uverify"))$("#uverify").onclick=verifySheet;
@@ -958,10 +1175,25 @@ function renderProfile(){
       if(!g("ucname")){toast("Укажите название компании");return}
       if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("Проверьте e-mail: в нём должны быть @ и точка");return}
       Object.assign(state.user,{cname:clip(g("ucname"),100),idno:clip(g("uidno"),20),cphone:clip(g("ucphone"),30),cphone2:clip(g("ucphone2"),30),fax:clip(g("ufax"),30),email:clip(em,120)})}
-    state.user.ig=ig;state.user.fb=fb;save();renderProfile();doneSheet("Отлично! Ваш профиль изменён!","Теперь попутчики увидят обновлённые данные.")};
+    state.user.ig=ig;state.user.fb=fb;
+    if(LIVE){const n=clip($("#uname").value,60),ph=$("#uphone")?$("#uphone").value.trim():"";if(!n){toast("Впишите имя");return}
+      if(ph&&ph.replace(/\D/g,"").length<8){toast("Проверьте номер: нужен код страны и номер");return}
+      state.user.name=n;pushProfile().then(()=>ph&&ph!==state.user.phone?api.rpc("set_phone",{p:ph}).then(()=>{state.user.phone="+"+ph.replace(/\D/g,"")}):null)
+        .then(()=>{save();renderProfile();doneSheet("Отлично! Ваш профиль изменён!","Теперь попутчики увидят обновлённые данные.")},liveFail);return}
+    save();renderProfile();doneSheet("Отлично! Ваш профиль изменён!","Теперь попутчики увидят обновлённые данные.")};
   $$("#ltype button").forEach(x=>x.onclick=()=>{state.user.ltype=x.dataset.l;save();renderProfile()});
   $("#uphoto").onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file||!/^image\//.test(file.type))return;if(file.size>MAX_FILE){toast("Фото слишком большое, нужно до 15 МБ");return}
-    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();toast("Фото профиля добавлено")};im.onerror=()=>toast("Не получилось открыть фото, попробуйте другое");im.src=rd.result};rd.readAsDataURL(file)};
+    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/Math.min(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);state.user.photo=c.toDataURL("image/jpeg",.8);save();renderProfile();if(LIVE)pushProfile().then(()=>toast("Фото профиля добавлено"),liveFail);else toast("Фото профиля добавлено")};im.onerror=()=>toast("Не получилось открыть фото, попробуйте другое");im.src=rd.result};rd.readAsDataURL(file)};
+  $$("[data-bphone]").forEach(x=>x.onclick=()=>api.rpc("booking_phone",{p_booking:x.dataset.bphone}).then(t=>{x.outerHTML=t?`<a class="mono" href="tel:${esc(t)}">${esc(t)}</a>`:`<span class="small muted">Номер не указан</span>`},liveFail));
+  $$("[data-delr]").forEach(x=>x.onclick=()=>api.del("routes?id=eq."+x.dataset.delr).then(()=>{state.routes=state.routes.filter(r=>r.id!==x.dataset.delr);toast("Маршрут снят");renderProfile()},liveFail));
+  if(LIVE){
+    $("#out").onclick=()=>liveLogout(false);
+    $("#outall").onclick=()=>api.fn("logout_all").then(()=>liveLogout(true,"Вы вышли на всех устройствах"),liveFail);
+    $("#delacc").onclick=()=>sheet(`<h2>Удалить аккаунт?</h2><p>Удалятся ваш профиль, маршруты, точки ожидания, брони и переписка. Вернуть их будет нельзя.</p>
+      <button class="btn" id="dyes" type="button">Да, удалить навсегда</button><button class="btn ghost" id="dno" type="button">Отмена</button>`,s=>{
+      s.querySelector("#dno").onclick=closeSheet;
+      s.querySelector("#dyes").onclick=()=>api.rpc("delete_my_account").then(()=>liveLogout(true,"Аккаунт и все данные удалены"),liveFail)});
+    return}
   $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
   $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;state.reviews=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
 }
@@ -1034,10 +1266,16 @@ const COMPANIES={"Molda Trans":{idno:"1012600000001",phones:["+373 22 00 00 01",
 const cbadge=`<span class="vbadge" style="color:var(--ink)" title="Юридическое лицо">Компания</span>`;
 function person(name){
   const me=state.user&&(name===state.user.name||name===state.user.cname),h=hsh(name);
+  if(LIVE&&!me){const P=live.byName[name],x=P&&P.extra&&typeof P.extra==="object"?P.extra:{};
+    const reviews=state.reviews.filter(r=>r.to===name).sort((a,b)=>b.t-a.t),rating=reviews.length?reviews.reduce((s,r)=>s+r.stars,0)/reviews.length:null;
+    const str=v=>typeof v==="string"?clip(v,200):"";
+    return {name,company:x.ltype==="company"?{idno:str(x.idno),phones:[str(x.cphone),str(x.cphone2)].filter(Boolean),fax:str(x.fax),email:str(x.email)}:null,
+      phone:!!(P&&P.phone_ok),docs:!!(P&&P.verified),photo:safeImg(x.photo)||null,verified:!!(P&&P.verified),ig:str(x.ig)==="demo"?"":str(x.ig),fb:str(x.fb)==="demo"?"":str(x.fb),
+      trips:state.routes.filter(r=>r.driver===name).length,since:P?new Date(P.created_at).getFullYear():new Date().getFullYear(),reviews,rating}}
   const seedRev=me?[]:[0,1,2].slice(0,2+h%2).map(i=>{const r=REV_POOL[(h+i*3)%REV_POOL.length];return {who:r[0],stars:r[1],text:r[2],t:Date.now()-(i+1)*(9+h%20)*864e5}});
   const reviews=[...state.reviews.filter(r=>r.to===name),...seedRev].sort((a,b)=>b.t-a.t);
   const rating=reviews.length?reviews.reduce((x,r)=>x+r.stars,0)/reviews.length:null;
-  if(me){const u=state.user;const co=u.ltype==="company"?{idno:u.idno||"",phones:[u.cphone,u.cphone2].filter(Boolean),fax:u.fax||"",email:u.email||""}:null;return {name,me:true,company:co,phone:true,docs:!!u.docs,photo:u.photo||null,verified:!!u.docs,ig:u.ig||"",fb:u.fb||"",trips:state.routes.filter(r=>r.mine).length+state.bookings.length,since:2026,reviews,rating}}
+  if(me){const u=state.user;const co=u.ltype==="company"?{idno:u.idno||"",phones:[u.cphone,u.cphone2].filter(Boolean),fax:u.fax||"",email:u.email||""}:null;return {name,me:true,company:co,phone:!LIVE||!!u.phoneOk,docs:!!u.docs,photo:u.photo||null,verified:!!u.docs,ig:u.ig||"",fb:u.fb||"",trips:state.routes.filter(r=>r.mine).length+state.bookings.length,since:2026,reviews,rating}}
   const ver=!UNVERIFIED.includes(name);
   return {name,company:COMPANIES[name]||null,phone:true,docs:ver,photo:null,verified:ver,ig:h%3!==0?"demo":"",fb:h%2===0?"demo":"",trips:5+h%170,since:2022+h%4,reviews,rating};
 }
@@ -1079,11 +1317,13 @@ function reviewSheet(b){
     s.querySelectorAll("[data-st]").forEach(x=>x.onclick=()=>{const t=s.querySelector("#rvt").value;stars=+x.dataset.st;draw(s);s.querySelector("#rvt").value=t});
     s.querySelector("#rvx").onclick=closeSheet;
     s.querySelector("#rvok").onclick=()=>{const t=clip(s.querySelector("#rvt").value,1000);if(!t){toast("Напишите пару слов о поездке");return}
+      if(LIVE){api.post("reviews",{booking_id:b.id,stars,body:t}).then(()=>loadAll()).then(()=>{closeSheet();toast("Спасибо за отзыв!");renderProfile()},liveFail);return}
       state.reviews.push({to:b.driver,who:state.user.name,stars,text:t,t:Date.now()});b.reviewed=true;save();closeSheet();toast("Спасибо за отзыв!");renderProfile()};
   };
   sheet("",draw);
 }
 function verifySheet(){
+  if(LIVE){toast("Проверка документов скоро появится. Мы напишем, когда её можно будет пройти");return}
   sheet(`<h2>Проверка документов</h2>
     <p>Проверка займёт пару минут: сфотографируйте паспорт или права и сделайте селфи. Проверку проводит специальный сервис (например, Veriff или Sumsub), а мы получаем только ответ «проверен» или «нет». Сами документы мы не храним.</p>
     <p class="small muted">После проверки рядом с вашим именем появится значок ${vbadge}. Таким водителям и попутчикам доверяют больше.</p>
@@ -1134,7 +1374,7 @@ function render(){
   if(!state.user)return renderAuth();
   if(!window.d3||!window.EU_MAP){view.innerHTML=`<div class="card empty">Не удалось загрузить карту. Проверьте интернет и обновите страницу.</div>`;return}
   $("#tabs").hidden=false;
-  $("#who").innerHTML=`${esc(state.user.name)}<br><span class="mono">${esc(state.user.phone)}</span>`;
+  $("#who").innerHTML=`${esc(state.user.name)}<br><span class="mono">${esc(state.user.phone||state.user.loginEmail||"")}</span>`;
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===state.tab?"page":"false"));
   updateBadge();
   ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile}[state.tab]||renderMap)();
@@ -1142,10 +1382,12 @@ function render(){
   if(!state.seenIntro)showIntro(0);
 }
 $("#fab").onclick=openSupport;$("#helpintro").onclick=()=>showIntro(0);
-$$("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;if(b.dataset.tab==="chats")state.openChat=null;save();render()});
+$$("#tabs button").forEach(b=>b.onclick=()=>{const t=state.tab=b.dataset.tab;if(t==="chats")state.openChat=null;save();render();
+  if(LIVE&&(t==="map"||t==="profile"))loadAll().then(()=>{if(state.user&&state.tab===t&&!$(".scrim"))render()},()=>{})});
 
 probeRealMap();
 let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
 render();
+if(LIVE&&state.user)startLive();
 })();
 </script>
