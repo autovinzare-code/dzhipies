@@ -2,7 +2,7 @@
 <title>go-transfer-go</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Защита: браузер грузит код, стили и данные только с перечисленных адресов (CSP) -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://router.project-osrm.org https://nominatim.openstreetmap.org; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.geoapify.com https://router.project-osrm.org https://nominatim.openstreetmap.org; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
@@ -78,6 +78,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-vis
 .mapbox{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--sea);height:min(56vh,440px);min-height:300px;touch-action:none}
 .mapbox svg{width:100%;height:100%;display:block;cursor:grab}
 .mapbox.picking svg{cursor:crosshair}
+.maploading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px}
 .country{fill:var(--land);stroke:var(--border);stroke-width:.6;vector-effect:non-scaling-stroke}
 .country.md{fill:var(--accent);fill-opacity:.22}
 .road{fill:none;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
@@ -454,19 +455,25 @@ function drawPin(m,p,label,fill){
   const [x,y]=m.xy(p);m.ll.append("text").attr("class","city-lbl").attr("data-x",x).attr("data-y",y).attr("x",x+10/m.k).attr("y",y-8/m.k).style("font-size",11/m.k+"px").style("stroke-width",3/m.k+"px").text(label);
 }
 
-/* Подробная карта: OpenStreetMap через MapLibre и OpenFreeMap. Включается, если сервисы доступны; иначе встроенная схема */
-const GL={on:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1",
+/* Подробная карта: OpenStreetMap через MapLibre и OpenFreeMap. Пока она грузится, показываем «Загружаем карту»; встроенная схема только если загрузить не удалось */
+const GL={on:false,failed:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1",
   /* Отпечатки файлов MapLibre 4.7.1: если CDN подменит файл, браузер его не запустит */
   js:"sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj",css:"sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V"};
 let curGL=null;
+/* Ключ Geoapify (бесплатно 3000 запросов в день, коммерческое использование разрешено): поиск адресов и маршруты по дорогам.
+   Пустой ключ: маршруты считает демо-сервер OSRM, адрес ищется в Nominatim только по кнопке «Найти» (подсказки при наборе их правила запрещают) */
+const GEO_KEY="";
+const geoUrl=(path,q)=>`https://api.geoapify.com/v1/${path}?${new URLSearchParams({...q,apiKey:GEO_KEY})}`;
+const reMapTabs=()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()};
+function glFail(){if(GL.on||GL.failed)return;GL.failed=true;reMapTabs()}
 function probeRealMap(){
-  const ctl=new AbortController();setTimeout(()=>ctl.abort(),5000);
+  const ctl=new AbortController();setTimeout(()=>ctl.abort(),10000);setTimeout(glFail,20000);
   fetch(GL.style,{signal:ctl.signal}).then(r=>{if(!r.ok)throw 0;
     const l=document.createElement("link");l.rel="stylesheet";l.href=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.css`;l.integrity=GL.css;l.crossOrigin="anonymous";document.head.appendChild(l);
     const sc=document.createElement("script");sc.src=`https://unpkg.com/maplibre-gl@${GL.ver}/dist/maplibre-gl.js`;sc.integrity=GL.js;sc.crossOrigin="anonymous";
-    sc.onload=()=>{if(!window.maplibregl)return;GL.on=true;if(state.user&&(state.tab==="map"||state.tab==="publish"))render()};
+    sc.onload=()=>{if(!window.maplibregl)return glFail();GL.on=true;reMapTabs()};sc.onerror=glFail;
     document.head.appendChild(sc);
-  }).catch(()=>{});
+  }).catch(glFail);
 }
 function arcCoords(a,b){const n=40,dx=b.lon-a.lon,dy=b.lat-a.lat,c=[(a.lon+b.lon)/2+dy*.18,(a.lat+b.lat)/2-dx*.18],out=[];
   for(let i=0;i<=n;i++){const t=i/n,u=1-t;out.push([u*u*a.lon+2*u*t*c[0]+t*t*b.lon,u*u*a.lat+2*u*t*c[1]+t*t*b.lat])}return out}
@@ -544,20 +551,28 @@ function svgMap(box,opts){
     road(){},focus:m.focus,zoomBy:m.zoomBy
   };
 }
-const makeMap=(box,opts)=>GL.on?glMap(box,opts):svgMap(box,opts);
-const mapNote=()=>GL.on?"Карта © OpenStreetMap, OpenFreeMap. Маршрут по дорогам считает OSRM.":"Карта дорог Европы: трассы, шоссе и основные дороги (Natural Earth). Приближайте, чтобы увидеть больше дорог и городов. Полная карта всех улиц OpenStreetMap работает в версии на сайте.";
+function waitMap(box){box.insertAdjacentHTML("afterbegin",`<div class="maploading" role="status">Загружаем подробную карту…</div>`);
+  const noop=()=>{};return {routes:noop,waits:noop,points:noop,select:noop,pin:noop,line:noop,road:noop,focus:noop,zoomBy:noop}}
+const makeMap=(box,opts)=>GL.on?glMap(box,opts):GL.failed?svgMap(box,opts):waitMap(box);
+const mapNote=()=>GL.on?`Карта © OpenStreetMap, OpenFreeMap. Маршрут по дорогам считает ${GEO_KEY?"Geoapify":"OSRM"}.`:!GL.failed?"Загружаем подробную карту OpenStreetMap…":"Карта дорог Европы: трассы, шоссе и основные дороги (Natural Earth). Приближайте, чтобы увидеть больше дорог и городов. Полная карта всех улиц OpenStreetMap работает в версии на сайте.";
 
 /* Поиск мест и маршрутов по дорогам */
 const roadCache={};
 async function roadRoute(r){
   if(roadCache[r.id])return roadCache[r.id];
+  if(GEO_KEY){const j=await (await fetch(geoUrl("routing",{waypoints:`${r.from.lat},${r.from.lon}|${r.to.lat},${r.to.lon}`,mode:"drive"}))).json();
+    const f=j.features&&j.features[0];if(!f)throw new Error("no route");
+    return roadCache[r.id]={geo:f.geometry,km:Math.round(f.properties.distance/1000),h:f.properties.time/3600}}
   const j=await (await fetch(`https://router.project-osrm.org/route/v1/driving/${r.from.lon},${r.from.lat};${r.to.lon},${r.to.lat}?overview=simplified&geometries=geojson`)).json();
   if(!j.routes||!j.routes[0])throw new Error("no route");
   return roadCache[r.id]={geo:j.routes[0].geometry,km:Math.round(j.routes[0].distance/1000),h:j.routes[0].duration/3600};
 }
-async function revGeo(lat,lon){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ru`)).json();
+async function geoRev(lat,lon){const j=await (await fetch(geoUrl("geocode/reverse",{lat,lon,lang:"ru",format:"json"}))).json();return (j.results||[])[0]||{}}
+async function revGeo(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon),n=a.city||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ru`)).json();
   const a=j.address||{},n=a.city||a.town||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}}
-async function revStreet(lat,lon){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
+async function revStreet(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon);return {city:a.city||a.village||"",street:[a.street,a.housenumber].filter(Boolean).join(", ")}}catch(e){return null}
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
   const a=j.address||{};return {city:a.city||a.town||a.village||"",street:[a.road||a.pedestrian||a.square,a.house_number].filter(Boolean).join(", ")}}catch(e){return null}}
 function setPlace(obj,p,rer){const k=obj.pick||"A";obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
 function setPoint(obj,lat,lon,rer){
@@ -592,14 +607,17 @@ function findPlaces(q,max=8){const qn=normTxt(q);if(!qn)return[];const ql=latTxt
   res.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const good=res.filter(x=>x[0]<4);
   return (good.length?good:res).slice(0,max).map(x=>x[2])}
 const placeLabel=o=>o.cc&&CC_RU[o.cc]?CC_RU[o.cc]:o.osm?"OpenStreetMap":"";
-async function osmFind(v){try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
+async function osmFind(v,typing){if(GEO_KEY)try{const j=await (await fetch(geoUrl(typing?"geocode/autocomplete":"geocode/search",{text:v,lang:"ru",limit:5,format:"json"}))).json();
+  return (j.results||[]).map(x=>({name:x.name||x.city||x.address_line1,lat:+x.lat,lon:+x.lon,osm:true,cc:(x.country_code||"").toUpperCase(),sub:[x.city!==x.name&&x.city,x.country].filter(Boolean).join(", ")}))}catch(e){return[]}
+  if(typing)return[];
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
   return j.map(x=>({name:x.display_name.split(",")[0].trim(),lat:+x.lat,lon:+x.lon,osm:true,cc:"",sub:x.display_name.split(",").slice(1,3).join(",").trim()}))}catch(e){return[]}}
 function bindSearch(obj,rer){const f=$("#sq");if(!f)return;const q=$("#q"),box=$("#sugg");let cur=[],tm=0,seq=0;
   const pick=o=>setPlace(obj,{name:o.name,lat:o.lat,lon:o.lon},rer);
   const draw=()=>{box.innerHTML=cur.map((o,i)=>`<button type="button" role="option" data-i="${i}"><span>${esc(o.name)}</span><small>${esc(o.sub||placeLabel(o))}</small></button>`).join("");
     box.querySelectorAll("button").forEach(b=>b.onclick=()=>pick(cur[+b.dataset.i]))};
   q.oninput=()=>{const v=q.value.trim();cur=v?findPlaces(v):[];draw();clearTimeout(tm);
-    if(GL.on&&v.length>=3&&cur.length<4){const my=++seq;tm=setTimeout(async()=>{const r=await osmFind(v);if(my!==seq)return;
+    if(GL.on&&GEO_KEY&&v.length>=3&&cur.length<4){const my=++seq;tm=setTimeout(async()=>{const r=await osmFind(v,true);if(my!==seq)return;
       r.forEach(o=>{if(!cur.some(c=>dist([c.lat,c.lon],[o.lat,o.lon])<15))cur.push(o)});cur=cur.slice(0,8);draw()},450)}};
   q.onkeydown=e=>{if(e.key==="ArrowDown"&&box.firstChild){e.preventDefault();box.firstChild.focus()}};
   box.onkeydown=e=>{const t=e.target;if(e.key==="ArrowDown"&&t.nextSibling){e.preventDefault();t.nextSibling.focus()}if(e.key==="ArrowUp"){e.preventDefault();(t.previousSibling||q).focus()}};
