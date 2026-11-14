@@ -1,6 +1,17 @@
 <meta charset="utf-8">
 <title>go-transfer-go</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Установка на телефон и компьютер без магазинов приложений (PWA) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1C2B27">
+<meta name="description" content="Поездки, посылки и перевозка машин по Европе">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="go-transfer">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Защита: браузер грузит код, стили и данные только с перечисленных адресов (CSP) -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.geoapify.com https://router.project-osrm.org https://nominatim.openstreetmap.org; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -225,6 +236,13 @@ nav.tabs button[aria-current="page"]{color:var(--ink)}
 nav.tabs button[aria-current="page"] span{box-shadow:inset 0 -2px 0 var(--accent)}
 nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--warn);color:#fff;font:600 11px/17px var(--f-body);padding:0 4px}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--road);color:var(--road-ink);padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+.installbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:15px;border:0;background:var(--accent);color:var(--accent-ink);font:600 13px var(--f-body);cursor:pointer;flex:none;white-space:nowrap}
+.installbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.installbtn[hidden]{display:none}
+.brand{white-space:nowrap}
+@media (max-width:430px){.installbtn span{display:none}.installbtn{width:30px;padding:0;justify-content:center}}
+.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
+.steps svg{width:18px;height:18px;vertical-align:-3px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .empty{text-align:center;padding:22px 12px;color:var(--muted)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -233,7 +251,7 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
   <header class="top">
     <div class="wrap">
       <div class="brand">go-<b>transfer</b>-go</div>
-      <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
+      <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="installbtn" id="installbtn" type="button" aria-label="Установить приложение" title="Установить приложение на телефон или компьютер" hidden><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Установить</span></button><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
     </div>
     <div class="lane"></div>
   </header>
@@ -1165,5 +1183,62 @@ $$("#tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;if(b.datase
 probeRealMap();
 let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
 render();
+})();
+</script>
+<script>
+/* Установка приложения на экран телефона или компьютера (без Play Market и App Store) */
+(function(){
+  var btn=document.getElementById("installbtn");
+  var deferred=null;
+  var ua=navigator.userAgent;
+  var standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+  var ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  var macSafari=!ios&&/Macintosh/.test(ua)&&/Safari/.test(ua)&&!/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
+
+  if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+    addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});
+  }
+  if(standalone)return;
+
+  function close(){var o=document.querySelector(".scrim.install");if(o)o.remove()}
+  function show(html){
+    close();
+    var s=document.createElement("div");s.className="scrim install";
+    s.innerHTML='<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="insttitle">'+html+'<button class="btn" type="button" data-close>Понятно</button></div>';
+    s.addEventListener("click",function(e){if(e.target===s||e.target.hasAttribute("data-close"))close()});
+    document.body.appendChild(s);s.querySelector("[data-close]").focus();
+  }
+  var share='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg>';
+  var plus='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg>';
+  function iosHelp(){show(
+    '<h2 id="insttitle">Установить на iPhone</h2>'+
+    '<p class="muted small">Приложение появится на экране «Домой» с иконкой, как обычное. Бесплатно, без App Store.</p>'+
+    '<ol class="steps">'+
+    '<li>Нажмите кнопку «Поделиться» '+share+' внизу экрана (в Safari) или в адресной строке.</li>'+
+    '<li>Прокрутите список вниз и выберите «На экран Домой» '+plus+'.</li>'+
+    '<li>Нажмите «Добавить» в правом верхнем углу.</li>'+
+    '</ol>'
+  )}
+  function macHelp(){show(
+    '<h2 id="insttitle">Установить на Mac</h2>'+
+    '<ol class="steps"><li>В верхнем меню Safari откройте «Файл».</li><li>Выберите «Добавить в Dock».</li><li>Нажмите «Добавить».</li></ol>'
+  )}
+  function otherHelp(){show(
+    '<h2 id="insttitle">Установить приложение</h2>'+
+    '<ol class="steps"><li>Откройте меню браузера (три точки ⋮).</li><li>Выберите «Установить приложение» или «Добавить на главный экран».</li></ol>'
+  )}
+
+  addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferred=e;btn.hidden=false});
+  addEventListener("appinstalled",function(){deferred=null;btn.hidden=true;close()});
+  if(ios||macSafari)btn.hidden=false;
+
+  btn.addEventListener("click",function(){
+    if(deferred){
+      deferred.prompt();
+      deferred.userChoice.then(function(r){if(r.outcome==="accepted")btn.hidden=true;deferred=null});
+    }else if(ios)iosHelp();
+    else if(macSafari)macHelp();
+    else otherHelp();
+  });
 })();
 </script>
