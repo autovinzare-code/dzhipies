@@ -1,0 +1,14 @@
+# Заголовки безопасности для Cloudflare Pages или Netlify (GitHub Pages этот файл игнорирует).
+# Основная политика CSP записана в index.html. Здесь только то, что нельзя задать через <meta>:
+# запрет встраивать сайт в чужие рамки (кликджекинг), HTTPS навсегда и запрет лишних функций браузера.
+/*
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
+/sw.js
+  Cache-Control: no-cache
