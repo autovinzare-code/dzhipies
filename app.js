@@ -577,12 +577,12 @@ function drawPin(m,p,label,fill){
 const GL={on:false,failed:false,style:"https://tiles.openfreemap.org/styles/liberty",ver:"4.7.1",
   /* Отпечатки файлов MapLibre 4.7.1: если CDN подменит файл, браузер его не запустит */
   js:"sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj",css:"sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V"};
-let curGL=null;
+let curGL=null;const GLVIEW={};
 /* Ключ Geoapify (бесплатно 3000 запросов в день, коммерческое использование разрешено): поиск адресов и маршруты по дорогам.
    Пустой ключ: маршруты считает демо-сервер OSRM, адрес ищется в Nominatim только по кнопке «Найти» (подсказки при наборе их правила запрещают) */
 const GEO_KEY="";
 const geoUrl=(path,q)=>`https://api.geoapify.com/v1/${path}?${new URLSearchParams({...q,apiKey:GEO_KEY})}`;
-const reMapTabs=()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()};
+const reMapTabs=()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render(true)};
 function glFail(){if(GL.on||GL.failed)return;GL.failed=true;reMapTabs()}
 function probeRealMap(){
   const ctl=new AbortController();setTimeout(()=>ctl.abort(),10000);setTimeout(glFail,20000);
@@ -598,8 +598,10 @@ function arcCoords(a,b){const n=40,dx=b.lon-a.lon,dy=b.lat-a.lat,c=[(a.lon+b.lon
 function glMap(box,opts){
   if(curGL){curGL.remove();curGL=null}
   const el=document.createElement("div");el.style.cssText="position:absolute;inset:0";box.prepend(el);
-  const map=new maplibregl.Map({container:el,style:GL.style,center:[17,47],zoom:3.2,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false});
+  const vk=state.tab,v0=GLVIEW[vk]||{center:[17,47],zoom:3.2};
+  const map=new maplibregl.Map({container:el,style:GL.style,center:v0.center,zoom:v0.zoom,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false});
   map.touchZoomRotate.disableRotation();curGL=map;
+  map.on("moveend",()=>{if(curGL===map)GLVIEW[vk]={center:map.getCenter().toArray(),zoom:map.getZoom()}});
   let loaded=false,items=[];const q=[];const ready=f=>loaded?f():q.push(f);
   map.on("load",()=>{loaded=true;
     map.addSource("ourcities",{type:"geojson",data:{type:"FeatureCollection",features:(window.EU_PLACES||[]).map(([n,lat,lon,rk])=>({type:"Feature",properties:{name:n,rk},geometry:{type:"Point",coordinates:[lon,lat]}}))}});
@@ -634,7 +636,7 @@ function glMap(box,opts){
       set("hubsn",data,[lbl("dep",-8),lbl("arr",8)]);
     })},
     select(){api.routes(items)},
-    pin(p,label,color){const d=document.createElement("div");d.className="glpin";d.innerHTML=`<i style="background:${color}"></i><span>${esc(label)}</span>`;new maplibregl.Marker({element:d,anchor:"left",offset:[-8,0]}).setLngLat([p.lon,p.lat]).addTo(map)},
+    pin(p,label,color){const d=document.createElement("div");d.className="glpin";d.dataset.lbl=label;d.innerHTML=`<i style="background:${color}"></i><span>${esc(label)}</span>`;new maplibregl.Marker({element:d,anchor:"left",offset:[-8,0]}).setLngLat([p.lon,p.lat]).addTo(map)},
     line(a,b,col){ready(()=>set("draft",{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:arcCoords(a,b)}},[{id:"draft",type:"line",paint:{"line-color":col,"line-width":4,"line-dasharray":[2,1.5]}}]))},
     road(geo){ready(()=>set("road",geo?{type:"Feature",properties:{},geometry:geo}:fc([]),[{id:"road",type:"line",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":css("--accent"),"line-width":5,"line-opacity":.95}}]))},
     focus(points,mz){ready(()=>{const b=new maplibregl.LngLatBounds();points.forEach(p=>b.extend([p.lon,p.lat]));map.fitBounds(b,{padding:{top:60,bottom:40,left:50,right:110},maxZoom:mz||9,duration:500})})},
@@ -693,11 +695,20 @@ async function revStreet(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon);r
   try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
   const a=j.address||{};return {city:a.city||a.town||a.village||"",street:[a.road||a.pedestrian||a.square,a.house_number].filter(Boolean).join(", ")}}catch(e){return null}}
 function setPlace(obj,p,rer){const k=obj.pick||"A";trk("search",{field:k==="A"?"откуда":"куда",city:p&&p.name,where:obj===state?"карта":"я еду"});obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
+function nearestPlace(lat,lon){let best=null,bd=1e9;for(const o of placeIdx()){const d=dist([lat,lon],[o.lat,o.lon]);if(d<bd){bd=d;best=o}}return{o:best,d:bd}}
+/* Меняет подпись точки на месте, не перерисовывая экран и карту (иначе карта мигает и страница прыгает) */
+function renamePoint(obj,k,p,nm,rer){const old=p.name;p.name=nm;
+  const btn=$((obj===state?"#p":"#q")+k+" span");if(!btn)return rer();btn.textContent=nm;
+  $$(".glpin").forEach(d=>{const l=d.dataset.lbl||"";if(l.endsWith(" · "+old)){d.dataset.lbl=l.slice(0,-old.length)+nm;d.querySelector("span").textContent=d.dataset.lbl}});
+  if(obj===state.pub&&k==="A"&&obj.cityFor===old){const c=$("#pcity"),was=old.replace(/^Точка у /,"").split(",")[0],now=nm.split(",")[0];
+    if(c&&c.value===was)c.value=now;if(obj.form&&obj.form.pcity===was)obj.form.pcity=now;obj.cityFor=nm}
+  save()}
 function setPoint(obj,lat,lon,rer){
   const n=nearestCity(lat,lon),snap=GL.on?25:120,k=obj.pick;
-  const p=n.d<snap?place(n.name):{name:"Точка у "+n.name,lat,lon};
+  const np=n.d<snap?null:nearestPlace(lat,lon);
+  const p=n.d<snap?place(n.name):{name:"Точка у "+(np&&np.o&&np.d<n.d?np.o.name:n.name),lat,lon};
   setPlace(obj,p,rer);
-  if(GL.on&&n.d>=snap)revGeo(lat,lon).then(nm=>{if(nm&&obj[k]===p){p.name=nm;rer()}});
+  if(GL.on&&n.d>=snap)revGeo(lat,lon).then(nm=>{if(nm&&obj[k]===p)renamePoint(obj,k,p,nm,rer)});
 }
 function searchForm(obj){return obj.pick?`<form class="searchwrap" id="sq"><div class="searchrow"><input id="q" autocomplete="off" autocapitalize="words" placeholder="${obj.pick==="A"?"Откуда: впишите город":"Куда: впишите город"}" aria-label="${obj.pick==="A"?"Город отправления":"Город назначения"}" aria-autocomplete="list" aria-controls="sugg"><button class="btn sm" type="submit">Найти</button></div><div class="sugg" id="sugg" role="listbox" aria-label="Подходящие города"></div></form>`:""}
 const normTxt=s=>s.toLowerCase().replace(/ё/g,"е").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[-‐–—.,'’`()]/g," ").replace(/\s+/g," ").trim();
@@ -980,7 +991,7 @@ function updateBadge(){const n=state.chats.reduce((s,c)=>s+(c.unread||0),0);cons
 
 /* ---------- Я еду: публикация ---------- */
 function renderPublish(){
-  const p=state.pub;
+  const p=state.pub,y0=window.scrollY;
   const f0=$("#pf");if(f0){p.form={};f0.querySelectorAll("input:not([type=file])").forEach(i=>p.form[i.id]=i.value)}
   p.form=p.form||{};
   const cityOf=n=>n.replace(/^Точка у /,"").split(",")[0];
@@ -1036,6 +1047,7 @@ function renderPublish(){
   if($("#pphotodel"))$("#pphotodel").onclick=()=>{p.photo=null;renderPublish()};
   $("#pmeet").onclick=()=>{if(!p.A){toast("Сначала выберите, откуда выезжаете");p.pick="A";renderPublish();return}p.pick="M";renderPublish();$("#pm").scrollIntoView({behavior:"smooth",block:"center"})};
   bindSearch(p,renderPublish);
+  if(window.scrollY!==y0)window.scrollTo(0,y0);
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
   $("#qA").onclick=()=>{p.pick="A";renderPublish()};$("#qB").onclick=()=>{p.pick="B";renderPublish()};
   $("#pf").onsubmit=e=>{e.preventDefault();
@@ -1423,7 +1435,8 @@ function renderAdminUser(){
 /* ---------- Каркас ---------- */
 /* Безопасность: любое текстовое поле получает предел длины, чтобы не забить память огромным текстом */
 new MutationObserver(()=>$$("input:not([maxlength]):not([type=file]):not([type=number]):not([type=date]):not([type=time]),textarea:not([maxlength])").forEach(el=>el.maxLength=el.tagName==="TEXTAREA"?1000:200)).observe(document.body,{childList:true,subtree:true});
-function render(){
+function render(keep){
+  const y=window.scrollY;
   closeSheet();
   $(".app").dataset.tab=state.user?state.tab:"auth";
   if(curGL&&state.tab!=="map"&&state.tab!=="publish"){curGL.remove();curGL=null}
@@ -1436,7 +1449,7 @@ function render(){
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===state.tab?"page":"false"));
   updateBadge();
   ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile,admin:renderAdmin}[state.tab]||renderMap)();
-  if(state.tab!=="chats")window.scrollTo(0,0);
+  if(keep===true)window.scrollTo(0,y);else if(state.tab!=="chats")window.scrollTo(0,0);
   if(state.tab!=="chats"&&state.tab!=="admin")trkScreen();
   if(!state.seenIntro)showIntro(0);
 }
@@ -1471,7 +1484,10 @@ addEventListener("keydown",e=>{
 });
 
 probeRealMap();
-let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
+/* На телефоне «resize» срабатывает при прокрутке (прячется адресная строка) и при открытии клавиатуры.
+   Перерисовываем только когда реально поменялась ширина экрана, и не сбрасываем прокрутку. */
+let rt,lastW=innerWidth;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(innerWidth===lastW)return;lastW=innerWidth;
+  const a=document.activeElement;if(state.user&&(state.tab==="map"||state.tab==="publish")&&!(a&&a.closest&&a.closest("input,textarea,select")))render(true)},300)});
 render();
 if(LIVE&&state.user)startLive();
 else if(LIVE)googleReturn();
