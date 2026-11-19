@@ -1,0 +1,7 @@
+# Dependabot предлагает обновления для GitHub Actions (в том числе исправления уязвимостей).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,0 +1,14 @@
+# Секреты никогда не попадают в GitHub
+.env
+.env.*
+*.pem
+*.key
+*.p12
+secrets*
+service_role*
+supabase/.temp/
+supabase/.branches/
+# Мусор системы
+.DS_Store
+Thumbs.db
+node_modules/
