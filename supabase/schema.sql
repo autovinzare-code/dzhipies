@@ -82,6 +82,17 @@ language sql stable security definer set search_path = '' as $$
   select profile_id from public.sessions where uid = auth.uid()
 $$;
 
+-- Админы приложения: почта профиля. Добавить себя: insert into public.admins (email) values ('ваша@почта');
+create table if not exists public.admins (
+  email text primary key check (email = lower(email))
+);
+
+-- Админ: вошедший человек, чья почта есть в таблице admins
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles p join public.admins a on a.email = p.email where p.id = public.me())
+$$;
+
 -- Имя, которое видят другие: название компании или имя человека
 create or replace function public.display_name(p uuid) returns text
 language sql stable security definer set search_path = '' as $$
@@ -300,7 +311,7 @@ $$;
 create or replace function public.my_profile() returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('id', id, 'name', name, 'phone', phone, 'phone_ok', phone_ok, 'email', email,
-    'telegram', telegram_id is not null, 'verified', verified, 'extra', extra)
+    'telegram', telegram_id is not null, 'verified', verified, 'extra', extra, 'is_admin', public.is_admin())
   from public.profiles where id = public.me()
 $$;
 
@@ -373,6 +384,155 @@ begin
   delete from public.profiles where id = who;
 end $$;
 
+-- ---------- История действий для админки ----------
+-- Что записываем: какой экран открыт, на какую кнопку нажали, выбранный город в поиске, подача объявления,
+--   бронь, вход и выход. Только если человек сам разрешил это в приложении.
+-- Что НЕ записываем никогда: пароли, коды входа, текст сообщений и отзывов, то, что человек печатает.
+-- Читать историю может только админ (таблица admins). Старые записи удаляются сами (по умолчанию через 12 месяцев).
+
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null
+);
+insert into public.app_settings (key, value) values ('events_retention_months', '12') on conflict (key) do nothing;
+
+create table if not exists public.events (
+  id bigint generated always as identity primary key,
+  profile_id uuid references public.profiles (id) on delete cascade,
+  uid uuid references auth.users (id) on delete cascade,
+  sid text check (char_length(sid) <= 40),
+  device text check (char_length(device) <= 20),
+  name text not null check (name ~ '^[a-z_]{1,32}$'),
+  screen text check (char_length(screen) <= 60),
+  target text check (char_length(target) <= 80),
+  props jsonb not null default '{}'::jsonb check (jsonb_typeof(props) = 'object' and pg_column_size(props) < 1200),
+  at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+create index if not exists events_profile_idx on public.events (profile_id, at desc);
+create index if not exists events_created_idx on public.events (created_at);
+create index if not exists events_uid_idx on public.events (uid, created_at);
+
+-- Удалить записи старше срока хранения (вызывается сама изредка и по расписанию pg_cron, если он включён)
+create or replace function public.purge_old_events() returns int
+language plpgsql security definer set search_path = '' as $$
+declare m int; n int;
+begin
+  select least(12, greatest(1, coalesce((value #>> '{}')::int, 12))) into m from public.app_settings where key = 'events_retention_months';
+  delete from public.events where id in (
+    select id from public.events where created_at < now() - make_interval(months => coalesce(m, 12)) limit 20000);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- Приложение присылает пачку событий (до 50 за раз). Профиль и время сервер ставит сам
+create or replace function public.log_events(p_events jsonb, p_sid text default '', p_device text default '') returns void
+language plpgsql security definer set search_path = '' as $$
+declare who uuid := auth.uid(); pid uuid := public.me();
+begin
+  if who is null or jsonb_typeof(p_events) <> 'array' then return; end if;
+  -- не больше 3000 событий в час с одной сессии: остальное молча отбрасываем
+  if (select count(*) from (select 1 from public.events where uid = who and created_at > now() - interval '1 hour' limit 3000) t) >= 3000 then return; end if;
+  insert into public.events (profile_id, uid, sid, device, name, screen, target, props, at)
+  select pid, who, left(coalesce(p_sid, ''), 40), left(coalesce(p_device, ''), 20), e->>'n',
+    left(e->>'s', 60), left(e->>'t', 80),
+    case when jsonb_typeof(e->'p') = 'object' and pg_column_size(e->'p') < 1000 then e->'p' else '{}'::jsonb end,
+    case when jsonb_typeof(e->'at') = 'number' and (e->>'at')::float8 between extract(epoch from now() - interval '1 day') * 1000 and extract(epoch from now()) * 1000 + 60000
+      then to_timestamp((e->>'at')::float8 / 1000) else now() end
+  from (select value e from jsonb_array_elements(p_events) limit 50) x
+  where jsonb_typeof(e) = 'object' and coalesce(e->>'n', '') ~ '^[a-z_]{1,32}$';
+  if random() < 0.01 then perform public.purge_old_events(); end if;
+end $$;
+
+-- Человек может стереть свою историю действий (право на удаление, GDPR)
+create or replace function public.forget_my_events() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from public.events where uid = auth.uid() or (public.me() is not null and profile_id = public.me());
+end $$;
+
+create or replace function public.need_admin() returns void
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_admin() then raise exception 'Только для администратора' using errcode = '42501'; end if;
+end $$;
+
+-- Админка: итоги за период
+create or replace function public.admin_overview(p_days int default 7) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare d int := least(366, greatest(1, coalesce(p_days, 7))); since timestamptz; r jsonb;
+begin
+  perform public.need_admin();
+  since := now() - make_interval(days => d);
+  select jsonb_build_object(
+    'users_total', (select count(*) from public.profiles),
+    'users_new', (select count(*) from public.profiles where created_at > since),
+    'active_today', (select count(distinct profile_id) from public.events where at > date_trunc('day', now())),
+    'active', (select count(distinct profile_id) from public.events where at > since),
+    'guests', (select count(distinct uid) from public.events where at > since and profile_id is null),
+    'events', (select count(*) from public.events where at > since),
+    'routes', (select count(*) from public.routes where created_at > since),
+    'requests', (select count(*) from public.requests where created_at > since),
+    'bookings', (select count(*) from public.bookings where created_at > since),
+    'by_name', coalesce((select jsonb_object_agg(name, n) from (select name, count(*) n from public.events where at > since group by name) t), '{}'::jsonb),
+    'screens', coalesce((select jsonb_agg(jsonb_build_object('k', screen, 'n', n) order by n desc) from
+      (select screen, count(*) n from public.events where at > since and name = 'screen' group by screen order by n desc limit 12) t), '[]'::jsonb),
+    'clicks', coalesce((select jsonb_agg(jsonb_build_object('k', target, 'n', n) order by n desc) from
+      (select target, count(*) n from public.events where at > since and name = 'click' group by target order by n desc limit 15) t), '[]'::jsonb),
+    'days', coalesce((select jsonb_agg(jsonb_build_object('d', dd, 'n', n, 'u', u) order by dd desc) from
+      (select date_trunc('day', at)::date dd, count(*) n, count(distinct coalesce(profile_id, uid)) u from public.events where at > since group by 1) t), '[]'::jsonb),
+    'retention_months', (select value from public.app_settings where key = 'events_retention_months')
+  ) into r;
+  return r;
+end $$;
+
+-- Админка: список людей, последние активные сверху
+create or replace function public.admin_users(p_q text default '', p_limit int default 50, p_offset int default 0) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare q text := lower(left(coalesce(p_q, ''), 100)); r jsonb;
+begin
+  perform public.need_admin();
+  select coalesce(jsonb_agg(x order by x->>'last_at' desc nulls last), '[]'::jsonb) into r from (
+    select jsonb_build_object('id', p.id, 'name', public.display_name(p.id), 'email', p.email, 'created_at', p.created_at,
+      'last_at', (select max(at) from public.events e where e.profile_id = p.id),
+      'n30', (select count(*) from public.events e where e.profile_id = p.id and e.at > now() - interval '30 days')) x
+    from public.profiles p
+    where q = '' or lower(p.name) like '%' || q || '%' or p.email like '%' || q || '%' or lower(coalesce(p.extra->>'cname', '')) like '%' || q || '%'
+    order by (select max(at) from public.events e where e.profile_id = p.id) desc nulls last, p.created_at desc
+    limit least(200, greatest(1, coalesce(p_limit, 50))) offset greatest(0, coalesce(p_offset, 0))) t;
+  return r;
+end $$;
+
+-- Админка: лента действий одного человека (с конца, страницами)
+create or replace function public.admin_user_events(p_profile uuid, p_before timestamptz default null, p_limit int default 200) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare r jsonb;
+begin
+  perform public.need_admin();
+  select coalesce(jsonb_agg(jsonb_build_object('at', at, 'n', name, 's', screen, 't', target, 'p', props, 'sid', sid, 'dev', device) order by at desc, id desc), '[]'::jsonb) into r
+  from (select * from public.events where profile_id = p_profile and (p_before is null or at < p_before)
+        order by at desc, id desc limit least(500, greatest(1, coalesce(p_limit, 200)))) t;
+  return r;
+end $$;
+
+-- Админка: срок хранения истории, от 1 до 12 месяцев
+create or replace function public.admin_set_retention(p_months int) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.need_admin();
+  if p_months is null or p_months < 1 or p_months > 12 then raise exception 'Срок от 1 до 12 месяцев' using errcode = '22023'; end if;
+  insert into public.app_settings (key, value) values ('events_retention_months', to_jsonb(p_months))
+    on conflict (key) do update set value = excluded.value;
+  perform public.purge_old_events();
+end $$;
+
+-- Если в Supabase включено расширение pg_cron, чистка идёт каждую ночь в 03:15 (UTC)
+do $$ begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule('gtg-purge-events', '15 3 * * *', 'select public.purge_old_events()');
+  end if;
+end $$;
+
 -- ---------- Права доступа ----------
 alter table public.profiles enable row level security;
 alter table public.sessions enable row level security;
@@ -382,9 +542,12 @@ alter table public.requests enable row level security;
 alter table public.bookings enable row level security;
 alter table public.messages enable row level security;
 alter table public.reviews enable row level security;
+alter table public.events enable row level security;
+alter table public.admins enable row level security;
+alter table public.app_settings enable row level security;
 
 revoke all on public.profiles, public.sessions, public.login_requests, public.routes, public.requests,
-  public.bookings, public.messages, public.reviews from anon, authenticated;
+  public.bookings, public.messages, public.reviews, public.events, public.admins, public.app_settings from anon, authenticated;
 -- Supabase по умолчанию разрешает новые функции ролям anon и authenticated: закрываем всё и открываем только нужное
 revoke execute on all functions in schema public from public, anon, authenticated;
 alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;
@@ -442,5 +605,12 @@ create policy reviews_add on public.reviews for insert to authenticated with che
 grant execute on function public.me(), public.book_route(uuid, text, int, text), public.booking_phone(uuid),
   public.delete_my_account(), public.my_profile(), public.link_email(), public.set_phone(text),
   public.valid_point(jsonb), public.valid_caps(jsonb) to authenticated;
+-- История действий: писать только через log_events, читать только админу
+grant execute on function public.is_admin(), public.log_events(jsonb, text, text), public.forget_my_events(),
+  public.admin_overview(int), public.admin_users(text, int, int), public.admin_user_events(uuid, timestamptz, int),
+  public.admin_set_retention(int) to authenticated;
+grant select on public.events to authenticated;
+drop policy if exists events_admin_read on public.events;
+create policy events_admin_read on public.events for select to authenticated using (public.is_admin());
 revoke execute on function public.check_login_code(text, uuid, text) from authenticated;
 grant execute on function public.check_login_code(text, uuid, text) to service_role;
