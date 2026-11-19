@@ -64,7 +64,9 @@ self.addEventListener("fetch", e => {
   if (LIB_HOSTS.includes(url.hostname)) {
     e.respondWith(
       caches.open(LIBS).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
-        if (res.ok || res.type === "opaque") c.put(req, res.clone());
+        /* Храним только удачные ответы. Непрозрачные (opaque) ответы нельзя проверить, и каждый
+           занимает в кэше несколько мегабайт, поэтому их берём только у Google Fonts (файл стилей шрифтов). */
+        if ((res.ok && res.type === "cors") || (res.type === "opaque" && url.hostname === "fonts.googleapis.com")) c.put(req, res.clone());
         return res;
       })))
     );
