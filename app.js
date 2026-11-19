@@ -197,8 +197,46 @@ async function finishLogin(){
   const p=await api.rpc("my_profile");if(!p||!p.id)throw new Error("no profile");
   const u=userFromProfile(p),a=state.auth;a.prof=u;
   if(!u.name){a.step="name";render();return}
-  if(!u.tg){a.step="linktg";render();return}
+  if(!u.tg&&!a.google){a.step="linktg";render();return}
   enterLive(u);
+}
+/* ---------- Вход через Google: Supabase OAuth с PKCE. Секрет Google хранится только в Supabase, в браузер и в GitHub он не попадает ---------- */
+const b64u=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const backUrl=()=>location.origin+location.pathname;
+async function googleStart(b){
+  if(b){b.disabled=true;b.setAttribute("aria-busy",true)}
+  try{
+    const v=b64u(crypto.getRandomValues(new Uint8Array(32)));
+    const ch=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)));
+    store.set("pkce",{v,t:Date.now()});
+    location.assign(SB+"/auth/v1/authorize?"+new URLSearchParams({provider:"google",redirect_to:backUrl(),code_challenge:ch,code_challenge_method:"s256"}));
+  }catch(e){if(b){b.disabled=false;b.setAttribute("aria-busy",false)}toast("Не получилось открыть Google. Попробуйте ещё раз")}
+}
+/* Google вернул человека на сайт с ?code=… : меняем код на сессию и находим (или создаём) профиль по почте */
+async function googleReturn(){
+  const q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1));
+  const code=q.get("code"),err=q.get("error")||h.get("error"),errd=q.get("error_description")||h.get("error_description")||"";
+  const p=store.get("pkce",null);
+  if(!p||!(code||err))return;
+  store.set("pkce",null);history.replaceState(null,"",backUrl());
+  const a=state.auth;
+  if(err){toast(/not enabled|unsupported provider/i.test(errd)?"Вход через Google ещё не включён на сервере":"Вход через Google отменён");return}
+  if(Date.now()-p.t>6e5){toast("Время входа вышло. Нажмите «Войти через Google» ещё раз");return}
+  a.step="gwait";render();
+  let em="";
+  try{const j=await api.auth("token?grant_type=pkce",{auth_code:code,code_verifier:p.v});api.setS(j);
+    const m=j.user&&j.user.user_metadata||{};em=String(j.user&&j.user.email||"").toLowerCase();a.gname=clip(m.full_name||m.name||"",60)}
+  catch(e){a.step="start";render();toast("Не удалось войти через Google. Попробуйте ещё раз");return}
+  a.google=true;
+  try{await api.rpc("link_email");await finishLogin();return}
+  catch(e){
+    try{await api.auth("logout",{},api.s&&api.s.a)}catch(x){}api.setS(null);a.google=false;
+    if(!/Telegram/.test(e.message||"")||!em){a.step="start";render();toast(errText(e));return}
+  }
+  /* К аккаунту уже подключён Telegram: как и с почтой, нужен ещё код из Telegram */
+  a.email=em;
+  try{a.login=await api.fn("login_code",{email:em});a.step="tgcode";render();toast("К аккаунту подключён Telegram. Отправили туда код для входа")}
+  catch(e){a.step="start";render();toast(errText(e))}
 }
 function enterLive(u){state.user=u;state.auth={step:"start"};save();render();toast("Вы вошли");startLive()}
 /* Подключить Telegram к профилю: бот попросит поделиться номером, потом туда будут приходить коды входа */
@@ -234,7 +272,9 @@ function renderAuthLive(){
   const sendTgCode=async b=>{busy(b,true);
     try{a.login=await api.fn("login_code",{email:a.email});a.step="tgcode";render();toast("Код отправлен")}
     catch(e){busy(b,false);toast(e.status===429?"Слишком много попыток. Подождите 10 минут":e.code==="anonymous_provider_disabled"?"Сервер ещё не настроен: включите анонимный вход в Supabase":"Не удалось связаться с сервером. Попробуйте ещё раз")}};
-  if(a.step==="tgcode"&&a.login){
+  if(a.step==="gwait"){
+    view.innerHTML=`<h1>Входим через Google…</h1><p class="muted" role="status">Подождите пару секунд.</p>`;
+  }else if(a.step==="tgcode"&&a.login){
     view.innerHTML=`<h1>Код из Telegram</h1>
       <p class="muted">Если аккаунт с почтой <b>${esc(a.email)}</b> есть и к нему подключён Telegram, бот${a.login.bot?` <b>@${esc(a.login.bot)}</b>`:""} прислал вам код из 6 цифр.</p>
       <form class="card" id="f"><label for="oc">Код<br>${codeInput("oc")}</label>
@@ -264,7 +304,9 @@ function renderAuthLive(){
       <form class="card" id="f"><label for="em">Электронная почта<input id="em" type="email" inputmode="email" autocomplete="email" required value="${esc(a.email||"")}"></label>
       <button class="btn" type="submit">Получить код на почту</button>
       ${reg?`<p class="small muted">После почты подключите Telegram: туда будут приходить коды для входа. Это бесплатно, без SMS.</p>`:""}</form>
+      ${reg?`<button class="btn ghost" id="gg" type="button">Или войти через Google</button>`:""}
       <button class="btn ghost" id="back" type="button">Назад</button>`;
+    if(reg)$("#gg").onclick=()=>googleStart($("#gg"));
     $("#back").onclick=()=>{a.step="start";render()};
     $("#f").onsubmit=async e=>{e.preventDefault();const v=clip($("#em").value,200).trim().toLowerCase(),b=$("#f button");
       if(!okEmail(v)){toast("Проверьте почту: в ней должны быть @ и точка");return}
@@ -288,10 +330,10 @@ function renderAuthLive(){
   }else if(a.step==="name"&&a.prof){
     const u=a.prof;
     view.innerHTML=`<h1>Как вас зовут?</h1><p class="muted">Имя увидят водители и пассажиры в чате.</p>
-      <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" required></label>
+      <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" required value="${esc(a.gname||"")}"></label>
       <button class="btn" type="submit">Дальше</button></form>`;
     $("#f").onsubmit=async e=>{e.preventDefault();const n=clip($("#name").value,60).trim(),b=$("#f button");if(!n){toast("Впишите имя");return}
-      busy(b,true);try{await api.patch("profiles?id=eq."+u.id,{name:n});u.name=n;if(u.tg)enterLive(u);else{a.step="linktg";render()}}
+      busy(b,true);try{await api.patch("profiles?id=eq."+u.id,{name:n});u.name=n;if(u.tg||a.google)enterLive(u);else{a.step="linktg";render()}}
       catch(e){busy(b,false);toast(errText(e))}};
   }else if(a.step==="linktg"&&a.prof){
     const u=a.prof;
@@ -307,7 +349,9 @@ function renderAuthLive(){
       <p class="muted">Попутчики, посылки и перевозка машин по всей Европе. Бесплатно и без пароля: код для входа придёт в Telegram.</p>
       <form class="card" id="f"><label for="em">Почта, с которой вы регистрировались<input id="em" type="email" inputmode="email" autocomplete="email" required value="${esc(a.email||"")}"></label>
       <button class="btn" type="submit">Получить код в Telegram</button></form>
+      <div class="card"><p class="small muted" style="margin:0">Нет Telegram? Войдите через Google. Подходит и для первого входа: аккаунт создастся сам.</p><button class="btn ghost" id="gg" type="button">Войти через Google</button></div>
       <div class="card"><p class="small muted" style="margin:0">Впервые здесь?</p><button class="btn ghost" id="reg" type="button">Зарегистрироваться по почте</button></div>`;
+    $("#gg").onclick=()=>googleStart($("#gg"));
     $("#reg").onclick=()=>{a.mode="reg";a.step="email";render()};
     $("#f").onsubmit=e=>{e.preventDefault();const v=clip($("#em").value,200).trim().toLowerCase();
       if(!okEmail(v)){toast("Проверьте почту: в ней должны быть @ и точка");return}
@@ -1233,4 +1277,5 @@ probeRealMap();
 let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render()},300)});
 render();
 if(LIVE&&state.user)startLive();
+else if(LIVE)googleReturn();
 })();
