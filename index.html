@@ -235,6 +235,20 @@ nav.tabs svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1
 nav.tabs button[aria-current="page"]{color:var(--ink)}
 nav.tabs button[aria-current="page"] span{box-shadow:inset 0 -2px 0 var(--accent)}
 nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--warn);color:#fff;font:600 11px/17px var(--f-body);padding:0 4px}
+/* Уведомление о записи истории и админка */
+.trkbar{position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:35;box-shadow:0 6px 24px rgb(0 0 0 / .18);max-width:520px;margin:0 auto}
+.app:has(nav.tabs[hidden]) ~ .trkbar{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.trkbar .row,.card .row.wrap{display:flex;flex-wrap:wrap;gap:8px}
+.admtiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.admtiles .card{gap:2px}.admtiles b{font:700 26px var(--f-display)}
+.admcols{display:grid;gap:10px}
+.admuser{display:flex;flex-direction:row;gap:12px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
+.admuser .t{flex:1;min-width:0}.admuser .t p{margin:2px 0 0}
+.admday{font:600 14px var(--f-body);margin:10px 0 0}
+.admsess{margin:4px 0 0;border-top:1px dashed var(--line);padding-top:6px}
+.admev{display:grid;grid-template-columns:72px 1fr;gap:8px;font-size:14px;padding:4px 0;border-bottom:1px solid var(--line)}
+.admev time{color:var(--muted,inherit);opacity:.75;padding-top:1px}
+.admev span{min-width:0;overflow-wrap:anywhere}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--road);color:var(--road-ink);padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
 .installbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:15px;border:0;background:var(--accent);color:var(--accent-ink);font:600 13px var(--f-body);cursor:pointer;flex:none;white-space:nowrap}
 .installbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
@@ -261,6 +275,9 @@ nav.tabs .keyhint{display:none}
   .fab:hover{filter:brightness(1.2)}
 }
 @media (min-width:900px){
+  .trkbar{left:auto;right:24px;bottom:24px;max-width:440px}
+  .admtiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .admcols{grid-template-columns:1fr 1fr}
   :root{--hdr:68px;--rail:92px;--panel:420px}
   body{font-size:15.5px;margin:0}
   .app{max-width:none}

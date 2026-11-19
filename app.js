@@ -137,8 +137,86 @@ const save=()=>{store.set("user",state.user);store.set("tab",state.tab);store.se
   if(!LIVE){store.set("routes",state.routes);store.set("chats",state.chats);store.set("bookings",state.bookings);store.set("requests",state.requests);store.set("reviews",state.reviews)}};
 if(LIVE&&state.user&&!state.user.id)state.user=null;
 
+/* ---------- История действий (видна только админу) ----------
+   Записываем: какой экран открыт, на какую кнопку нажали, выбранный город, подачу объявления, бронь, вход и выход.
+   Только если человек разрешил (TRK.on===true). НИКОГДА не пишем: пароли, коды входа, текст сообщений и отзывов, то, что печатают в поля.
+   Хранится не дольше 12 месяцев (настраивается в админке), потом сервер удаляет записи сам. */
+const TRK={on:store.get("trk",null),q:[],sid:Math.random().toString(36).slice(2,12),last:"",tm:0,busy:false};
+const trkDev=()=>(matchMedia("(max-width:899px)").matches?"phone":"pc")+(matchMedia("(display-mode: standalone)").matches?"-app":"");
+/* Убираем из подписей всё, что похоже на номер, почту или код */
+const trkClean=v=>clip(String(v==null?"":v).replace(/\s+/g," ").replace(/[^\s@]+@[^\s@]+/g,"…").replace(/[+\d][\d\s().-]{4,}\d/g,"…").replace(/«[^»]*»/g,"«…»"),80);
+function trk(n,p,t){
+  if(TRK.on!==true||!/^[a-z_]{1,32}$/.test(n))return;
+  const e={n,at:Date.now(),s:trkScreenName()};if(t)e.t=trkClean(t);
+  if(p&&typeof p==="object"){const o={};Object.keys(p).slice(0,8).forEach(k=>{const v=p[k];if(v!=null&&v!=="")o[k]=typeof v==="number"?v:trkClean(v).slice(0,60)});e.p=o}
+  if(!LIVE){const L=store.get("trklog",[]);L.push({...e,sid:TRK.sid,dev:trkDev()});store.set("trklog",L.slice(-1500));return}
+  TRK.q.push(e);if(TRK.q.length>=20)trkFlush();else if(!TRK.tm)TRK.tm=setTimeout(trkFlush,8000);
+}
+/* Отправляем только когда у браузера уже есть сессия: ради записи не создаём новых анонимных аккаунтов */
+async function trkFlush(keep){
+  clearTimeout(TRK.tm);TRK.tm=0;
+  if(!LIVE||!TRK.q.length||TRK.busy||!api.s)return;
+  const batch=TRK.q.splice(0,50);TRK.busy=true;
+  try{await api.call("/rest/v1/rpc/log_events",{method:"POST",keepalive:!!keep,body:JSON.stringify({p_events:batch,p_sid:TRK.sid,p_device:trkDev()})})}
+  catch(e){if(!e.status||e.status>=500)TRK.q.unshift(...batch.slice(0,200-TRK.q.length))}
+  finally{TRK.busy=false}
+  if(TRK.q.length)TRK.tm=setTimeout(trkFlush,8000);
+}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)trkFlush(true)});
+function trkScreenName(){
+  if(!state.user)return "auth:"+(state.auth&&state.auth.step||"start");
+  if(state.tab==="chats"&&state.openChat)return "chat";
+  return state.tab||"map";
+}
+function trkScreen(){const s=trkScreenName();if(s===TRK.last)return;TRK.last=s;trk("screen")}
+/* Подпись нажатой кнопки: data-ev, aria-label, вкладка или короткий текст кнопки. Тексты переписки не берём */
+function trkLabel(el){
+  if(el.dataset.ev)return el.dataset.ev;
+  if(el.closest(".chatlog,.msg"))return "";
+  if(el.dataset.c!=null)return "Открыть чат";
+  if(el.dataset.person!=null)return "Профиль человека";
+  if(el.dataset.tab)return "Вкладка: "+((el.querySelector("span")||el).textContent.trim());
+  const a=el.getAttribute("aria-label")||el.getAttribute("title");
+  const txt=(el.textContent||"").trim();
+  return txt&&txt.length<=50?txt:a||(el.id?"#"+el.id:"Кнопка");
+}
+document.addEventListener("click",e=>{
+  if(TRK.on!==true)return;
+  const el=e.target.closest&&e.target.closest("button,a,[role=option],label.filebtn,summary");
+  if(!el||el.closest("#trkbar")||state.tab==="admin"&&state.user)return;
+  const l=trkLabel(el);if(l)trk("click",null,l);
+},true);
+function trkSet(v){TRK.on=v;store.set("trk",v);const b=$("#trkbar");if(b)b.remove();
+  if(v){TRK.last="";trkScreen();trk("consent",{on:1})}}
+/* Короткое уведомление внизу экрана при первом входе */
+function trkAsk(){
+  if(TRK.on!==null||$("#trkbar"))return;
+  const d=document.createElement("div");d.id="trkbar";d.className="trkbar card";d.setAttribute("role","region");d.setAttribute("aria-label","История действий");
+  d.innerHTML=`<p class="small" style="margin:0">Чтобы делать приложение удобнее, мы можем записывать, какие экраны вы открываете и какие кнопки нажимаете. Пароли, коды входа, текст сообщений и то, что вы печатаете, не записываем никогда. История хранится не дольше 12 месяцев, её видит только администратор.</p>
+    <div class="row"><button class="btn sm" id="trkyes" type="button">Разрешаю</button><button class="btn ghost sm" id="trkno" type="button">Не надо</button><button class="btn ghost sm" id="trkmore" type="button">Подробнее</button></div>`;
+  document.body.appendChild(d);
+  d.querySelector("#trkyes").onclick=()=>{trkSet(true);toast("Спасибо! Выключить можно в профиле")};
+  d.querySelector("#trkno").onclick=()=>{trkSet(false);toast("Хорошо, ничего не записываем")};
+  d.querySelector("#trkmore").onclick=privacySheet;
+}
+function privacySheet(){
+  sheet(`<h2>Конфиденциальность</h2>
+    <div class="small" style="display:grid;gap:8px">
+      <p style="margin:0"><b>Что мы храним.</b> Почту, имя, номер телефона (если вы его дали), подключён ли Telegram, ваши объявления, брони, отзывы и переписку. Номер телефона видит только тот, с кем у вас бронь. Переписку видите только вы и собеседник.</p>
+      <p style="margin:0"><b>История действий.</b> Только если вы разрешили: какие экраны вы открываете, на какие кнопки нажимаете, какой город выбрали в поиске, когда подали объявление или бронь, когда вошли и вышли. Пароли, коды входа, текст сообщений и то, что вы печатаете, не записываются. Историю видит только администратор, чтобы находить ошибки и делать приложение удобнее. Она хранится не дольше 12 месяцев и потом удаляется сама. Мы не продаём и не передаём её рекламным сетям.</p>
+      <p style="margin:0"><b>Ваши права.</b> Можно в любой момент выключить запись истории, стереть её или удалить аккаунт со всеми данными: всё это в профиле. Вопросы пишите в чат поддержки.</p>
+    </div>
+    <p class="small muted" style="margin:0">Сейчас запись истории: <b>${TRK.on===true?"включена":"выключена"}</b>.</p>
+    <div class="row"><button class="btn sm" id="pvon" type="button">${TRK.on===true?"Выключить запись":"Разрешить запись"}</button>${LIVE&&api.s?`<button class="btn ghost sm" id="pvdel" type="button">Стереть мою историю</button>`:""}</div>
+    <button class="btn ghost" id="pvok" type="button">Закрыть</button>`,s=>{
+    s.querySelector("#pvok").onclick=closeSheet;
+    s.querySelector("#pvon").onclick=()=>{const v=TRK.on!==true;if(!v){TRK.q=[]}trkSet(v);closeSheet();toast(v?"Запись истории включена":"Запись истории выключена");if(state.user&&state.tab==="profile")renderProfile()};
+    const del=s.querySelector("#pvdel");if(del)del.onclick=()=>{TRK.q=[];api.rpc("forget_my_events").then(()=>{closeSheet();toast("Ваша история действий стёрта")},liveFail)};
+  });
+}
+
 function doneSheet(title,text){sheet(`<div class="done"><div class="big" aria-hidden="true">✓</div><h2>${esc(title)}</h2>${text?`<p class="small muted">${esc(text)}</p>`:""}</div><button class="btn" id="dok" type="button">Хорошо</button>`,s=>{s.querySelector("#dok").onclick=closeSheet;s.querySelector("#dok").focus()})}
-function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
+function toast(msg){trk("toast",null,msg);const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
   const d=new Date(t),hh=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   const day=x=>{const y=new Date(x);y.setHours(0,0,0,0);return y.getTime()};
@@ -149,7 +227,7 @@ function when(t){
   return {txt:lbl+", "+hh, rel:inH<1?"скоро":inH<24?"через "+Math.round(inH)+" ч":"через "+Math.round(inH/24)+" дн.", soon:inH<24};
 }
 function closeSheet(){const s=$(".scrim");if(s)s.remove()}
-function sheet(html,bind){closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;s.onclick=e=>{if(e.target===s)closeSheet()};document.body.appendChild(s);bind&&bind(s);const f=s.querySelector("button,input");f&&f.focus()}
+function sheet(html,bind){closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;s.onclick=e=>{if(e.target===s)closeSheet()};document.body.appendChild(s);{const h=s.querySelector("h2,b");if(!(state.tab==="admin"&&state.user))trk("sheet",null,h?h.textContent:"Окно")}bind&&bind(s);const f=s.querySelector("button,input");f&&f.focus()}
 
 /* ---------- Вход по телефону ---------- */
 function renderAuth(){
@@ -161,8 +239,10 @@ function renderAuth(){
       <form class="card" id="f"><label for="phone">Номер телефона<input id="phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(a.phone)}"></label>
       <button class="btn" type="submit">Получить код</button>
       <p class="small muted">Подходит любой номер: Молдова, Румыния, Италия, Германия и другие страны.</p></form>
-      <button class="btn ghost" id="demo" type="button">Войти без SMS (демо)</button>`;
-    $("#demo").onclick=()=>{state.user={name:"Вова",phone:a.phone};save();render();toast("Вы вошли в демо-режиме")};
+      <button class="btn ghost" id="demo" type="button">Войти без SMS (демо)</button>
+      <button class="btn ghost sm" id="priv" type="button">Конфиденциальность</button>`;
+    $("#priv").onclick=privacySheet;
+    $("#demo").onclick=()=>{trk("login",{method:"demo"});state.user={name:"Вова",phone:a.phone};save();render();toast("Вы вошли в демо-режиме")};
     $("#f").onsubmit=e=>{e.preventDefault();const p=$("#phone").value.trim();if(p.replace(/\D/g,"").length<8){toast("Проверьте номер: нужен код страны и номер");return}
       a.phone=clip(p,30);a.sent=String(Math.floor(1000+Math.random()*9000));a.step="code";render()};
   }else if(a.step==="code"){
@@ -179,7 +259,7 @@ function renderAuth(){
   }else{
     view.innerHTML=`<h1>Как вас зовут?</h1><p class="muted">Имя увидят водители и пассажиры в чате.</p>
       <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" value="Вова" required></label><button class="btn" type="submit">Готово</button></form>`;
-    $("#f").onsubmit=e=>{e.preventDefault();state.user={name:clip($("#name").value,60)||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
+    $("#f").onsubmit=e=>{e.preventDefault();trk("register",{method:"demo"});state.user={name:clip($("#name").value,60)||"Гость",phone:a.phone};save();render();toast("Номер подтверждён")};
   }
 }
 
@@ -188,7 +268,7 @@ const live={people:{},byName:{},photos:{},poll:null,tick:null,n:0,sig:""};
 const EXTRA_KEYS=["photo","ltype","cname","idno","cphone","cphone2","fax","email","ig","fb"];
 const pickExtra=o=>{const x={};EXTRA_KEYS.forEach(k=>{if(o[k]!=null&&o[k]!=="")x[k]=k==="photo"?safeImg(o[k])||undefined:clip(o[k],200)});return x};
 function userFromProfile(p){const x=p.extra&&typeof p.extra==="object"&&!Array.isArray(p.extra)?p.extra:{};
-  return {...pickExtra(x),id:p.id,name:clip(p.name,60),phone:p.phone||"",phoneOk:!!p.phone_ok,loginEmail:p.email||"",tg:!!p.telegram,docs:!!p.verified}}
+  return {...pickExtra(x),id:p.id,name:clip(p.name,60),phone:p.phone||"",phoneOk:!!p.phone_ok,loginEmail:p.email||"",tg:!!p.telegram,docs:!!p.verified,isAdmin:!!p.is_admin}}
 const pushProfile=()=>api.patch("profiles?id=eq."+state.user.id,{name:state.user.name,extra:pickExtra(state.user)});
 function stopTgPoll(){if(live.poll){clearInterval(live.poll);live.poll=null}}
 const okEmail=v=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
@@ -238,7 +318,7 @@ async function googleReturn(){
   try{a.login=await api.fn("login_code",{email:em});a.step="tgcode";render();toast("К аккаунту подключён Telegram. Отправили туда код для входа")}
   catch(e){a.step="start";render();toast(errText(e))}
 }
-function enterLive(u){state.user=u;state.auth={step:"start"};save();render();toast("Вы вошли");startLive()}
+function enterLive(u){trk("login",{method:state.auth.google?"google":state.auth.login?"telegram":"email"});state.user=u;state.auth={step:"start"};save();render();toast("Вы вошли");startLive()}
 /* Подключить Telegram к профилю: бот попросит поделиться номером, потом туда будут приходить коды входа */
 async function tgLinkSheet(btn,done){
   const busy=on=>{if(btn){btn.disabled=on;btn.setAttribute("aria-busy",on)}};busy(true);
@@ -333,7 +413,7 @@ function renderAuthLive(){
       <form class="card" id="f"><label for="name">Имя<input id="name" autocomplete="given-name" required value="${esc(a.gname||"")}"></label>
       <button class="btn" type="submit">Дальше</button></form>`;
     $("#f").onsubmit=async e=>{e.preventDefault();const n=clip($("#name").value,60).trim(),b=$("#f button");if(!n){toast("Впишите имя");return}
-      busy(b,true);try{await api.patch("profiles?id=eq."+u.id,{name:n});u.name=n;if(u.tg||a.google)enterLive(u);else{a.step="linktg";render()}}
+      busy(b,true);try{await api.patch("profiles?id=eq."+u.id,{name:n});u.name=n;trk("register",{method:a.google?"google":"email"});if(u.tg||a.google)enterLive(u);else{a.step="linktg";render()}}
       catch(e){busy(b,false);toast(errText(e))}};
   }else if(a.step==="linktg"&&a.prof){
     const u=a.prof;
@@ -350,7 +430,9 @@ function renderAuthLive(){
       <form class="card" id="f"><label for="em">Почта, с которой вы регистрировались<input id="em" type="email" inputmode="email" autocomplete="email" required value="${esc(a.email||"")}"></label>
       <button class="btn" type="submit">Получить код в Telegram</button></form>
       <div class="card"><p class="small muted" style="margin:0">Нет Telegram? Войдите через Google. Подходит и для первого входа: аккаунт создастся сам.</p><button class="btn ghost" id="gg" type="button">Войти через Google</button></div>
-      <div class="card"><p class="small muted" style="margin:0">Впервые здесь?</p><button class="btn ghost" id="reg" type="button">Зарегистрироваться по почте</button></div>`;
+      <div class="card"><p class="small muted" style="margin:0">Впервые здесь?</p><button class="btn ghost" id="reg" type="button">Зарегистрироваться по почте</button></div>
+      <button class="btn ghost sm" id="priv" type="button">Конфиденциальность</button>`;
+    $("#priv").onclick=privacySheet;
     $("#gg").onclick=()=>googleStart($("#gg"));
     $("#reg").onclick=()=>{a.mode="reg";a.step="email";render()};
     $("#f").onsubmit=e=>{e.preventDefault();const v=clip($("#em").value,200).trim().toLowerCase();
@@ -429,7 +511,7 @@ async function startLive(){
 }
 async function liveLogout(expired,msg){
   clearInterval(live.tick);stopTgPoll();
-  if(!expired){try{await api.del("sessions?uid=not.is.null")}catch(e){}try{if(api.s)await api.auth("logout",{},api.s.a)}catch(e){}}
+  if(!expired){trk("logout");await trkFlush();try{await api.del("sessions?uid=not.is.null")}catch(e){}try{if(api.s)await api.auth("logout",{},api.s.a)}catch(e){}}
   api.setS(null);Object.assign(live,{people:{},byName:{},photos:{},sig:""});
   Object.assign(state,{user:null,routes:[],requests:[],chats:[],bookings:[],reviews:[],openChat:null,auth:{step:"start"}});save();render();
   if(msg||expired)toast(msg||"Сессия закончилась, войдите ещё раз");
@@ -612,7 +694,7 @@ async function revGeo(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon),n=a.
 async function revStreet(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon);return {city:a.city||a.village||"",street:[a.street,a.housenumber].filter(Boolean).join(", ")}}catch(e){return null}
   try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
   const a=j.address||{};return {city:a.city||a.town||a.village||"",street:[a.road||a.pedestrian||a.square,a.house_number].filter(Boolean).join(", ")}}catch(e){return null}}
-function setPlace(obj,p,rer){const k=obj.pick||"A";obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
+function setPlace(obj,p,rer){const k=obj.pick||"A";trk("search",{field:k==="A"?"откуда":"куда",city:p&&p.name,where:obj===state?"карта":"я еду"});obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
 function nearestPlace(lat,lon){let best=null,bd=1e9;for(const o of placeIdx()){const d=dist([lat,lon],[o.lat,o.lon]);if(d<bd){bd=d;best=o}}return{o:best,d:bd}}
 /* Меняет подпись точки на месте, не перерисовывая экран и карту (иначе карта мигает и страница прыгает) */
 function renamePoint(obj,k,p,nm,rer){const old=p.name;p.name=nm;
@@ -727,6 +809,7 @@ function renderMap(){
   $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
 }
 function selectRoute(id){
+  {const r=state.routes.find(x=>x.id===id);if(r&&state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name})}
   state.sel=id;mapCtx.select(id);
   $$(".offer").forEach(o=>o.classList.toggle("sel",o.dataset.id===id));
   const el=$(`.offer[data-id="${id}"]`);el&&el.scrollIntoView({behavior:"smooth",block:"center"});
@@ -790,9 +873,9 @@ function newWaitSheet(){
       if(LIVE){const kd=s.querySelector("#wk").value,at=new Date(s.querySelector("#wd").value+"T09:00").getTime();
         if(!Number.isFinite(at)){toast("Проверьте дату");return}
         api.post("requests",{at:new Date(at).toISOString(),data:{from:okPt(A),to:okPt(B),kind:WANT[kd]?kd:"seat",people:Math.min(9,Math.max(1,Math.round(+s.querySelector("#wp").value)||1)),note:clip(s.querySelector("#wn").value,300)}})
-          .then(()=>loadAll()).then(()=>{closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap()},liveFail);return}
+          .then(()=>loadAll()).then(()=>{trk("wait_publish",{from:A.name,to:B.name,kind:kd});closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap()},liveFail);return}
       state.requests.push({id:"q"+Date.now(),from:A,to:B,at:new Date(s.querySelector("#wd").value+"T09:00").getTime(),name:state.user.name,people:Math.min(9,Math.max(1,Math.round(+s.querySelector("#wp").value)||1)),kind:WANT[s.querySelector("#wk").value]?s.querySelector("#wk").value:"seat",note:clip(s.querySelector("#wn").value,300),mine:true});
-      save();closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap();
+      trk("wait_publish",{from:A.name,to:B.name});save();closeSheet();toast("Точка ожидания поставлена. Водители увидят её на карте");renderMap();
     };
   });
 }
@@ -847,11 +930,11 @@ function bookSheet(id){
       qty=Math.max(1,Math.min(r.caps[k],qv));
       if(LIVE){const b=s.querySelector("#pay"),ci=s.querySelector("#carinfo");b.disabled=true;
         api.rpc("book_route",{p_route:r.id,p_kind:k,p_qty:qty,p_info:ci?clip(ci.value,200):""}).then(()=>loadAll())
-          .then(()=>{closeSheet();toast("Забронировано. Водитель получил сообщение в чате");updateBadge();if(state.tab==="map")renderMap()},e=>{b.disabled=false;toast(errText(e))});return}
+          .then(()=>{trk("booking",{kind:k,qty,route:r.from.name+" → "+r.to.name});closeSheet();toast("Забронировано. Водитель получил сообщение в чате");updateBadge();if(state.tab==="map")renderMap()},e=>{b.disabled=false;toast(errText(e))});return}
       r.caps[k]-=qty;
       state.bookings.unshift({id:"B-"+Math.floor(1e4+Math.random()*9e4),route:r.id,title:`${r.from.name} → ${r.to.name}`,kind:k,qty,cost:r.prices[k]*qty,fee,at:r.at,driver:r.driver});
       const c=chatFor(r);c.msgs.push({me:false,text:`Бронь подтверждена: ${KINDS[k].t.toLowerCase()}, ${qty} ${KINDS[k].unit}. Напишите, где удобно встретиться.`,t:Date.now()});c.unread=(c.unread||0)+1;
-      save();closeSheet();toast("Забронировано. Водитель написал вам в чат");updateBadge();if(state.tab==="map")renderMap();
+      trk("booking",{kind:k,qty,route:r.from.name+" → "+r.to.name});save();closeSheet();toast("Забронировано. Водитель написал вам в чат");updateBadge();if(state.tab==="map")renderMap();
     };
   };
   sheet("",draw);
@@ -879,6 +962,7 @@ function renderChats(){
     return `<button class="card thread" data-c="${c.id}"><span class="ava">${esc(c.with[0])}</span><span class="t"><b>${esc(c.with)}</b> <span class="small muted">· ${esc(c.title)}</span><p class="small muted">${last?esc((last.me?"Вы: ":"")+last.text):"Новый чат"}</p></span>${c.unread?`<span class="pill go">${c.unread}</span>`:""}</button>`}).join("")}</div>`
     :`<div class="card empty">Здесь будут переписки с водителями и перевозчиками. Найдите маршрут на карте и нажмите «Написать».</div>`}`;
   $$("[data-c]").forEach(b=>b.onclick=()=>{state.openChat=b.dataset.c;renderChats()});
+  trkScreen();
 }
 function renderChat(c){
   if(LIVE&&c.unreadIds&&c.unreadIds.length){api.patch("messages?id=in.("+c.unreadIds.join(",")+")",{read_at:new Date().toISOString()}).catch(()=>{});c.unreadIds=[]}
@@ -895,12 +979,13 @@ function renderChat(c){
   $("#cf").onsubmit=e=>{e.preventDefault();const v=clip($("#ci").value,1000);if(!v)return;
     if(LIVE){const ci=$("#ci");ci.disabled=true;
       api.post("messages",{recipient:c.peer,route_id:c.route||null,request_id:c.req||null,title:clip(c.title,200),body:v})
-        .then(()=>{c.msgs.push({me:true,text:v,t:Date.now()});c.draft="";renderChat(c);$("#ci").focus();loadMsgs().catch(()=>{})},e=>{ci.disabled=false;toast(errText(e))});return}
-    c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
+        .then(()=>{trk("message_sent");c.msgs.push({me:true,text:v,t:Date.now()});c.draft="";renderChat(c);$("#ci").focus();loadMsgs().catch(()=>{})},e=>{ci.disabled=false;toast(errText(e))});return}
+    trk("message_sent");c.msgs.push({me:true,text:v,t:Date.now()});save();renderChat(c);
     const k=r?mainKind(r):"seat";const pool=c.req?REPLIES.req:/пригна|перегон/i.test(v)?REPLIES.drive:/посыл|кг|короб/i.test(v)?REPLIES.parcel:/машин|авто|трал/i.test(v)?REPLIES.car:REPLIES[k];
     const n=c.msgs.filter(m=>!m.me).length;
     setTimeout(()=>{c.msgs.push({me:false,text:pool[n%pool.length],t:Date.now()});if(state.openChat===c.id&&state.tab==="chats")renderChat(c);else{c.unread=(c.unread||0)+1;updateBadge()}save()},1400)};
   window.scrollTo(0,document.body.scrollHeight);
+  trkScreen();
 }
 function updateBadge(){const n=state.chats.reduce((s,c)=>s+(c.unread||0),0);const b=$("#badge");b.hidden=!n;b.textContent=n}
 
@@ -984,9 +1069,9 @@ function renderPublish(){
     if(LIVE){const b=$("#pf button[type=submit]");b.disabled=true;
       api.post("routes",{at:new Date(at).toISOString(),caps,photo:safeImg(r.photo)||null,data:{from:okPt(r.from),to:okPt(r.to),meet,vt,carrier:r.carrier,vehicle:r.vehicle,prices,note:r.note}},true)
         .then(rows=>{live.photos[rows[0].id]=safeImg(r.photo)||null;return loadAll().then(()=>rows[0].id)})
-        .then(id=>{state.A=p.A;state.B=p.B;state.kind="all";state.sel=id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};save();
+        .then(id=>{trk("route_publish",{from:p.A.name,to:p.B.name,what:Object.keys(caps).join(",")});state.A=p.A;state.B=p.B;state.kind="all";state.sel=id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};save();
           toast("Маршрут опубликован. Ждите сообщений от пассажиров");render()},e=>{b.disabled=false;toast(errText(e))});return}
-    state.routes.push(r);save();
+    state.routes.push(r);save();trk("route_publish",{from:p.A.name,to:p.B.name,what:Object.keys(caps).join(",")});
     state.A=p.A;state.B=p.B;state.kind="all";state.sel=r.id;state.tab="map";state.pub={kind:"seat",A:null,B:null,pick:"A",vt:"car"};
     toast("Маршрут опубликован. Ждите сообщений от пассажиров");render();
   };
@@ -1032,12 +1117,18 @@ function renderProfile(){
     <div class="card"><h2>Мои точки ожидания</h2>
       ${state.requests.filter(q=>q.mine).map(q=>`<div class="kv"><span>${esc(q.from.name)} → ${esc(q.to.name)}<br><span class="small muted">${WANT[q.kind]} · ${when(q.at).txt}</span></span><button class="btn ghost sm" data-delq="${q.id}" type="button">Убрать</button></div>`).join("")||`<p class="small muted">Не нашли транспорт? На карте нажмите «Поставить точку ожидания».</p>`}
     </div>
+    ${admOk()?`<div class="card"><h2>Админка</h2><p class="small muted" style="margin:0">Кто пользуется приложением, какие экраны открывают и куда нажимают.</p><button class="btn" id="uadmin" type="button">Открыть админку</button></div>`:""}
+    <div class="card"><h2>История действий</h2><p class="small muted" style="margin:0">${TRK.on===true?"Запись включена: мы видим, какие экраны вы открываете и какие кнопки нажимаете. Текст сообщений, коды и то, что вы печатаете, не записываются.":"Запись выключена. Если включите, нам будет проще находить ошибки и делать приложение удобнее."}</p>
+      <div class="row"><button class="btn ghost sm" id="utrk" type="button">${TRK.on===true?"Выключить запись":"Включить запись"}</button><button class="btn ghost sm" id="upriv" type="button">Конфиденциальность</button></div></div>
     <button class="btn ghost" id="reintro" type="button">Как пользоваться приложением</button>
     <button class="btn ghost" id="out" type="button">Выйти</button>
     ${LIVE?`<button class="btn ghost" id="outall" type="button">Выйти на всех устройствах</button><button class="btn ghost" id="delacc" type="button">Удалить аккаунт и все данные</button>`
       :`<button class="btn ghost" id="wipe" type="button">Сбросить демо-данные</button>`}`;
   $$("[data-delq]").forEach(b=>b.onclick=()=>{if(LIVE){delReq(b.dataset.delq,renderProfile);return}state.requests=state.requests.filter(q=>q.id!==b.dataset.delq);save();renderProfile()});
   $("#reintro").onclick=()=>showIntro(0);bindShare();
+  if($("#uadmin"))$("#uadmin").onclick=()=>{ADM.user=null;ADM.ov=null;ADM.users=null;goTab("admin")};
+  $("#upriv").onclick=privacySheet;
+  $("#utrk").onclick=()=>{const v=TRK.on!==true;if(!v)TRK.q=[];trkSet(v);toast(v?"Запись истории включена":"Запись истории выключена");renderProfile()};
   $$("[data-rev]").forEach(x=>x.onclick=()=>reviewSheet(state.bookings.find(b=>b.id===x.dataset.rev)));
   if($("#uverify"))$("#uverify").onclick=verifySheet;
   $("#usoc").onclick=()=>{const ig=$("#uig").value.trim(),fb=$("#ufb").value.trim();
@@ -1067,7 +1158,7 @@ function renderProfile(){
       s.querySelector("#dno").onclick=closeSheet;
       s.querySelector("#dyes").onclick=()=>api.rpc("delete_my_account").then(()=>liveLogout(true,"Аккаунт и все данные удалены"),liveFail)});
     return}
-  $("#out").onclick=()=>{state.user=null;state.auth.step="phone";save();render()};
+  $("#out").onclick=()=>{trk("logout");state.user=null;state.auth.step="phone";save();render()};
   $("#wipe").onclick=()=>{state.routes=seedRoutes.map(r=>({...r,caps:{...r.caps}}));state.chats=[];state.bookings=[];state.requests=seedReqs();state.support=[];state.seenIntro=false;state.shared=false;state.reviews=[];save();updateBadge();toast("Демо-данные сброшены");renderProfile()};
 }
 
@@ -1120,7 +1211,7 @@ function openSupport(){
       <div class="chips">${SUPPORT_Q.map(q=>`<button type="button">${q}</button>`).join("")}</div>
       <form class="searchrow" id="sf"><input id="si" autocomplete="off" placeholder="Ваш вопрос"><button class="btn sm" type="submit">Отправить</button></form>
       <button class="btn ghost" id="sx" type="button">Закрыть</button>`;
-    const ask=v=>{state.support.push({me:true,text:v,t:Date.now()});state.support.push({me:false,text:supportAnswer(v),t:Date.now()});save();draw(s);const l=s.querySelector(".chatlog");s.querySelector(".sheet").scrollTop=l.scrollHeight};
+    const ask=v=>{trk("support_ask");state.support.push({me:true,text:v,t:Date.now()});state.support.push({me:false,text:supportAnswer(v),t:Date.now()});save();draw(s);const l=s.querySelector(".chatlog");s.querySelector(".sheet").scrollTop=l.scrollHeight};
     s.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>ask(b.textContent));
     s.querySelector("#sf").onsubmit=e=>{e.preventDefault();const v=clip(s.querySelector("#si").value,500);if(v)ask(v)};
     s.querySelector("#sx").onclick=closeSheet;
@@ -1190,7 +1281,7 @@ function reviewSheet(b){
     s.querySelectorAll("[data-st]").forEach(x=>x.onclick=()=>{const t=s.querySelector("#rvt").value;stars=+x.dataset.st;draw(s);s.querySelector("#rvt").value=t});
     s.querySelector("#rvx").onclick=closeSheet;
     s.querySelector("#rvok").onclick=()=>{const t=clip(s.querySelector("#rvt").value,1000);if(!t){toast("Напишите пару слов о поездке");return}
-      if(LIVE){api.post("reviews",{booking_id:b.id,stars,body:t}).then(()=>loadAll()).then(()=>{closeSheet();toast("Спасибо за отзыв!");renderProfile()},liveFail);return}
+      if(LIVE){api.post("reviews",{booking_id:b.id,stars,body:t}).then(()=>loadAll()).then(()=>{trk("review_sent",{stars});closeSheet();toast("Спасибо за отзыв!");renderProfile()},liveFail);return}
       state.reviews.push({to:b.driver,who:state.user.name,stars,text:t,t:Date.now()});b.reviewed=true;save();closeSheet();toast("Спасибо за отзыв!");renderProfile()};
   };
   sheet("",draw);
@@ -1215,7 +1306,7 @@ function shareCard(){
     ?`<div class="card sharecard"><h2>Спасибо, вы нам помогли!</h2><p>Каждый, кто узнает о go-transfer-go от вас, быстрее найдёт попутку или водителя для посылки.</p><button class="btn" type="button" data-share>Поделиться ещё раз</button></div>`
     :`<div class="card sharecard"><h2>Поделись один раз, помоги нам</h2><p>Чем больше людей в приложении, тем быстрее находится попутка, посылка уезжает в тот же день, а водители не едут с пустыми местами.</p><button class="btn" type="button" data-share>Поделиться приложением</button></div>`;
 }
-function markShared(){if(!state.shared){state.shared=true;save();toast("Спасибо, что поделились!")}}
+function markShared(){trk("share");if(!state.shared){state.shared=true;save();toast("Спасибо, что поделились!")}}
 async function shareApp(){
   const url=shareUrl();
   if(navigator.share){try{await navigator.share({title:"go-transfer-go",text:SHARE_TEXT,url});markShared();rerenderShare();return}catch(e){if(e&&e.name==="AbortError")return}}
@@ -1237,6 +1328,110 @@ async function shareApp(){
 function rerenderShare(){$$(".sharecard").forEach(c=>{c.outerHTML=shareCard()});bindShare()}
 function bindShare(){$$("[data-share]").forEach(b=>b.onclick=shareApp)}
 
+/* ---------- Админка: история действий людей ----------
+   Данные отдаёт только сервер и только админу (функции admin_* проверяют is_admin()). Кнопка в профиле лишь удобство.
+   В демо-режиме админка открывается по адресу …/#admin и показывает действия только на этом устройстве. */
+const ADM={days:7,q:"",user:null,ev:[],more:false,users:null,ov:null,load:0};
+const admOk=()=>!!state.user&&(LIVE?!!state.user.isAdmin:location.hash==="#admin");
+const EVN={screen:"Экран",click:"Нажатие",sheet:"Окно",search:"Выбор города",route_open:"Просмотр маршрута",route_publish:"Подал объявление",
+  wait_publish:"Поставил точку ожидания",booking:"Бронь",message_sent:"Отправил сообщение (текст не записывается)",review_sent:"Оставил отзыв",login:"Вход",
+  register:"Регистрация",logout:"Выход",support_ask:"Вопрос в поддержку",share:"Поделился приложением",toast:"Подсказка на экране",consent:"Разрешил запись истории"};
+const SCRN={map:"Карта",publish:"Я еду",chats:"Чаты",chat:"Переписка",profile:"Профиль",admin:"Админка","auth:start":"Вход","auth:email":"Ввод почты",
+  "auth:email-code":"Код из письма","auth:tgcode":"Код из Telegram","auth:name":"Ввод имени","auth:linktg":"Подключение Telegram","auth:gwait":"Вход через Google",
+  "auth:phone":"Вход (демо)","auth:code":"Код (демо)"};
+const scrName=s=>SCRN[s]||s||"";
+const DEVN={phone:"телефон",pc:"компьютер","phone-app":"телефон, приложение","pc-app":"компьютер, приложение"};
+function admLocal(){return store.get("trklog",[]).filter(e=>e&&typeof e==="object").map(e=>({...e,at:new Date(e.at).toISOString()}))}
+function admLocalOverview(d){const since=Date.now()-d*864e5,ev=admLocal().filter(e=>Date.parse(e.at)>since),cnt=(f,key)=>{const m={};ev.filter(f).forEach(e=>{const k=key(e);m[k]=(m[k]||0)+1});return Object.entries(m).map(([k,n])=>({k,n})).sort((a,b)=>b.n-a.n)};
+  const by={};ev.forEach(e=>by[e.n]=(by[e.n]||0)+1);
+  return {users_total:1,users_new:0,active_today:ev.some(e=>Date.parse(e.at)>new Date().setHours(0,0,0,0))?1:0,active:ev.length?1:0,guests:0,events:ev.length,
+    routes:by.route_publish||0,requests:by.wait_publish||0,bookings:by.booking||0,by_name:by,
+    screens:cnt(e=>e.n==="screen",e=>e.s).slice(0,12),clicks:cnt(e=>e.n==="click",e=>e.t).slice(0,15),
+    days:cnt(()=>true,e=>e.at.slice(0,10)).sort((a,b)=>a.k<b.k?1:-1).map(x=>({d:x.k,n:x.n,u:1})),retention_months:store.get("trkret",12)}}
+const admApi={
+  overview:d=>LIVE?api.rpc("admin_overview",{p_days:d}):Promise.resolve(admLocalOverview(d)),
+  users:q=>LIVE?api.rpc("admin_users",{p_q:q,p_limit:100,p_offset:0}):Promise.resolve([{id:"local",name:"Вы (это устройство, демо)",email:"",created_at:null,last_at:(admLocal().slice(-1)[0]||{}).at||null,n30:admLocal().length}]),
+  events:(id,before)=>LIVE?api.rpc("admin_user_events",{p_profile:id,p_before:before||null,p_limit:200})
+    :Promise.resolve(admLocal().filter(e=>!before||e.at<before).reverse().slice(0,200)),
+  retention:m=>LIVE?api.rpc("admin_set_retention",{p_months:m}):(store.set("trkret",m),Promise.resolve())
+};
+const fmtDT=t=>t?new Date(t).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+function evText(e){const p=e.p&&typeof e.p==="object"?e.p:{};
+  if(e.n==="screen")return scrName(e.s);
+  if(e.n==="consent"||e.n==="message_sent"||e.n==="logout"||e.n==="support_ask"||e.n==="share")return "";
+  if(e.n==="click"||e.n==="sheet"||e.n==="toast")return e.t||"";
+  if(e.n==="search")return [p.field,p.city].filter(Boolean).join(": ")+(p.where?" ("+p.where+")":"");
+  if(e.n==="booking")return [p.route,p.kind&&KINDS[p.kind]?KINDS[p.kind].t:p.kind,p.qty].filter(x=>x!=null&&x!=="").join(" · ");
+  if(e.n==="route_publish"||e.n==="wait_publish")return (p.from||"")+" → "+(p.to||"")+(p.what?" · "+String(p.what).split(",").map(k=>KINDS[k]?KINDS[k].t:k).join(", "):"");
+  if(e.n==="login"||e.n==="register")return p.method?({telegram:"код из Telegram",email:"код из письма",google:"Google",demo:"демо"}[p.method]||p.method):"";
+  return Object.values(p).join(" · ")}
+function admTop(list,label){return list&&list.length?list.map(x=>`<div class="kv"><span>${esc(label(x.k)||"—")}</span><b>${x.n}</b></div>`).join(""):`<p class="small muted">Пока пусто.</p>`}
+async function admLoad(){const my=++ADM.load;
+  try{const [ov,us]=await Promise.all([admApi.overview(ADM.days),admApi.users(ADM.q)]);if(my!==ADM.load)return;ADM.ov=ov;ADM.users=us}
+  catch(e){if(my!==ADM.load)return;ADM.ov=ADM.ov||{};ADM.users=ADM.users||[];toast(errText(e))}
+  if(state.tab==="admin"&&!ADM.user)renderAdmin()}
+async function admOpenUser(u){ADM.user=u;ADM.ev=null;ADM.more=false;renderAdmin();
+  try{ADM.ev=await admApi.events(u.id);ADM.more=ADM.ev.length>=200}catch(e){ADM.ev=[];toast(errText(e))}
+  if(state.tab==="admin"&&ADM.user===u)renderAdmin()}
+function renderAdmin(){
+  if(!admOk()){state.tab="profile";save();return render()}
+  if(ADM.user)return renderAdminUser();
+  if(!ADM.ov&&!ADM.pending){ADM.pending=true;admLoad().finally(()=>{ADM.pending=false})}
+  const o=ADM.ov,b=o&&o.by_name||{},n=v=>Number.isFinite(+v)?+v:0;
+  view.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="adback" type="button">← Профиль</button><h1 style="margin:0">Админка</h1></div>
+    ${LIVE?"":`<div class="hint">Демо-режим: здесь видно только то, что делали на этом устройстве. На настоящем сервере тут будут все люди.</div>`}
+    <div class="seg" id="addays">${[[1,"Сегодня"],[7,"7 дней"],[30,"30 дней"],[90,"90 дней"]].map(([d,t])=>`<button type="button" data-d="${d}" aria-pressed="${ADM.days===d}">${t}</button>`).join("")}</div>
+    ${!o?`<div class="card"><p class="muted" role="status">Загружаем…</p></div>`:`
+    <div class="admtiles">
+      <div class="card"><span class="small muted">Людей всего</span><b>${n(o.users_total)}</b><span class="small muted">новых: ${n(o.users_new)}</span></div>
+      <div class="card"><span class="small muted">Активны сегодня</span><b>${n(o.active_today)}</b><span class="small muted">за период: ${n(o.active)}</span></div>
+      <div class="card"><span class="small muted">Гости без входа</span><b>${n(o.guests)}</b><span class="small muted">за период</span></div>
+      <div class="card"><span class="small muted">Действий</span><b>${n(o.events)}</b><span class="small muted">за период</span></div>
+    </div>
+    <div class="card"><h2>Главное за период</h2>
+      <div class="kv"><span>Входы</span><b>${n(b.login)}</b></div><div class="kv"><span>Регистрации</span><b>${n(b.register)}</b></div>
+      <div class="kv"><span>Выбор города в поиске</span><b>${n(b.search)}</b></div><div class="kv"><span>Просмотры маршрутов</span><b>${n(b.route_open)}</b></div>
+      <div class="kv"><span>Новые объявления (маршруты)</span><b>${n(o.routes)}</b></div><div class="kv"><span>Точки ожидания</span><b>${n(o.requests)}</b></div>
+      <div class="kv"><span>Брони</span><b>${n(o.bookings)}</b></div><div class="kv"><span>Отправлено сообщений</span><b>${n(b.message_sent)}</b></div>
+      <p class="small muted" style="margin:0">Объявления, точки и брони считаются по базе, остальное только у тех, кто разрешил запись истории.</p></div>
+    <div class="admcols">
+      <div class="card"><h2>Какие экраны открывают</h2>${admTop(o.screens,scrName)}</div>
+      <div class="card"><h2>Куда чаще нажимают</h2>${admTop(o.clicks,x=>x)}</div>
+    </div>
+    <div class="card"><h2>По дням</h2>${(o.days||[]).length?`<div class="kv small muted"><span>День</span><span>действий · людей</span></div>`+(o.days||[]).map(x=>`<div class="kv"><span>${esc(new Date(x.d).toLocaleDateString("ru-RU",{weekday:"short",day:"2-digit",month:"2-digit"}))}</span><b>${n(x.n)} · ${n(x.u)}</b></div>`).join(""):`<p class="small muted">Пока пусто.</p>`}</div>`}
+    <div class="card"><h2>Люди</h2>
+      <form class="searchrow" id="adq"><input id="adqi" type="search" autocomplete="off" placeholder="Имя, компания или почта" value="${esc(ADM.q)}" aria-label="Найти человека"><button class="btn sm" type="submit">Найти</button></form>
+      <div class="list">${ADM.users==null?`<p class="small muted" role="status">Загружаем…</p>`:ADM.users.length?ADM.users.map((u,i)=>`<button class="card admuser" type="button" data-u="${i}"><span class="ava">${esc((u.name||"?")[0]||"?")}</span><span class="t"><b>${esc(u.name||"Без имени")}</b> <span class="small muted">${esc(u.email||"")}</span><p class="small muted">Последний раз: ${fmtDT(u.last_at)} · действий за 30 дней: ${n(u.n30)}</p></span></button>`).join(""):`<p class="small muted">Никого не нашли.</p>`}</div>
+    </div>
+    <div class="card"><h2>Сколько хранить историю</h2>
+      <p class="small muted" style="margin:0">Записи старше этого срока сервер удаляет сам. Больше 12 месяцев нельзя: так мы обещаем людям в уведомлении.</p>
+      <div class="searchrow"><select id="adret" aria-label="Срок хранения">${[1,3,6,12].map(m=>`<option value="${m}" ${n(o&&o.retention_months||12)===m?"selected":""}>${m} ${m===1?"месяц":m<5?"месяца":"месяцев"}</option>`).join("")}</select><button class="btn sm" id="adrets" type="button">Сохранить</button></div>
+    </div>`;
+  $("#adback").onclick=()=>goTab("profile");
+  $$("#addays button").forEach(x=>x.onclick=()=>{ADM.days=+x.dataset.d;ADM.ov=null;renderAdmin();admLoad()});
+  $("#adq").onsubmit=e=>{e.preventDefault();ADM.q=clip($("#adqi").value,100);ADM.users=null;renderAdmin();admLoad()};
+  $$("[data-u]").forEach(x=>x.onclick=()=>admOpenUser(ADM.users[+x.dataset.u]));
+  $("#adrets").onclick=()=>{const m=+$("#adret").value;admApi.retention(m).then(()=>{if(ADM.ov)ADM.ov.retention_months=m;toast("Срок хранения: "+m+" мес.")},liveFail)};
+  trkScreen();
+}
+function renderAdminUser(){
+  const u=ADM.user,ev=ADM.ev||[];let day="",sid="",rows="";
+  for(const e of ev){const d=new Date(e.at),dk=d.toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+    if(dk!==day){day=dk;sid="";rows+=`<h3 class="admday">${esc(dk[0].toUpperCase()+dk.slice(1))}</h3>`}
+    if(e.sid&&e.sid!==sid){sid=e.sid;rows+=`<p class="small muted admsess">Заход с устройства: ${esc(DEVN[e.dev]||e.dev||"—")}</p>`}
+    rows+=`<div class="admev"><time class="mono small">${d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</time><span><b>${esc(EVN[e.n]||e.n)}</b> ${esc(evText(e))}${e.n!=="screen"&&e.s?`<br><span class="small muted">на экране «${esc(scrName(e.s))}»</span>`:""}</span></div>`}
+  view.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="adub" type="button">← Все люди</button><h1 style="margin:0">${esc(u.name||"Без имени")}</h1></div>
+    <div class="card"><div class="kv"><span>Почта</span><b>${esc(u.email||"—")}</b></div><div class="kv"><span>Регистрация</span><b>${fmtDT(u.created_at)}</b></div>
+      <div class="kv"><span>Последнее действие</span><b>${fmtDT(u.last_at)}</b></div><div class="kv"><span>Действий за 30 дней</span><b>${Number(u.n30)||0}</b></div></div>
+    <div class="card"><h2>История действий</h2><p class="small muted" style="margin:0">Сначала новые. Текст сообщений, коды и то, что человек печатает, не записываются.</p>
+      ${ev.length?rows:`<p class="small muted" role="status">${ADM.ev===null?"Загружаем…":"Нет записей. Возможно, человек не разрешил запись истории."}</p>`}
+      ${ADM.more?`<button class="btn ghost" id="admore" type="button">Показать ещё</button>`:""}</div>`;
+  $("#adub").onclick=()=>{ADM.user=null;renderAdmin()};
+  if($("#admore"))$("#admore").onclick=async()=>{const b=$("#admore");b.disabled=true;
+    try{const more=await admApi.events(u.id,ev[ev.length-1].at);ADM.ev=ev.concat(more);ADM.more=more.length>=200}catch(e){toast(errText(e))}
+    if(ADM.user===u)renderAdminUser()};
+}
+
 /* ---------- Каркас ---------- */
 /* Безопасность: любое текстовое поле получает предел длины, чтобы не забить память огромным текстом */
 new MutationObserver(()=>$$("input:not([maxlength]):not([type=file]):not([type=number]):not([type=date]):not([type=time]),textarea:not([maxlength])").forEach(el=>el.maxLength=el.tagName==="TEXTAREA"?1000:200)).observe(document.body,{childList:true,subtree:true});
@@ -1246,14 +1441,16 @@ function render(keep){
   $(".app").dataset.tab=state.user?state.tab:"auth";
   if(curGL&&state.tab!=="map"&&state.tab!=="publish"){curGL.remove();curGL=null}
   $("#fab").hidden=$("#helpintro").hidden=!state.user;
-  if(!state.user)return renderAuth();
+  trkAsk();
+  if(!state.user){renderAuth();trkScreen();return}
   if(!window.d3||!window.EU_MAP){view.innerHTML=`<div class="card empty">Не удалось загрузить карту. Проверьте интернет и обновите страницу.</div>`;return}
   $("#tabs").hidden=false;
   $("#who").innerHTML=`${esc(state.user.name)}<br><span class="mono">${esc(state.user.phone||state.user.loginEmail||"")}</span>`;
   $$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===state.tab?"page":"false"));
   updateBadge();
-  ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile}[state.tab]||renderMap)();
+  ({map:renderMap,publish:renderPublish,chats:renderChats,profile:renderProfile,admin:renderAdmin}[state.tab]||renderMap)();
   if(keep===true)window.scrollTo(0,y);else if(state.tab!=="chats")window.scrollTo(0,0);
+  if(state.tab!=="chats"&&state.tab!=="admin")trkScreen();
   if(!state.seenIntro)showIntro(0);
 }
 $("#fab").onclick=openSupport;$("#helpintro").onclick=()=>showIntro(0);
