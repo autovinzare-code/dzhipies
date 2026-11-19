@@ -154,18 +154,24 @@ async function appRequest(req: Request) {
     // Ответ всегда одинаковый, есть такой аккаунт или нет: так нельзя узнать, чья почта зарегистрирована
     const token = randomToken();
     const reply = json({ status: "sent", token, ttl: CODE_TTL_MIN * 60, bot: await getBotName() });
+    // Запись создаём всегда, даже если такой почты нет: тогда и лимиты выше срабатывают одинаково
+    const th = await sha256(token);
+    const ins = await db.from("login_requests").insert({
+      token_hash: th, uid, kind: "login", ip_hash: ipHash, status: "failed", expires_at: inMinutes(CODE_TTL_MIN),
+    }).select("id").single();
+    if (ins.error) return reply;
     // Аккаунт ищем и код отправляем уже после ответа: так и по времени ответа нельзя понять, есть ли такая почта
     const work = (async () => {
       const { data: prof } = await db.from("profiles").select("id, telegram_id").eq("email", email).maybeSingle();
       if (!prof?.telegram_id) return;
       // Не больше 10 кодов в час на один аккаунт: защита от рассылки спама человеку в Telegram
       if ((await recent({ profile_id: prof.id, kind: "login" }, 60)) >= 10) return;
-      const code = randomCode6(), th = await sha256(token);
-      const ins = await db.from("login_requests").insert({
-        token_hash: th, uid, kind: "login", profile_id: prof.id, telegram_id: prof.telegram_id, chat_id: prof.telegram_id,
-        code_hash: await codeHash(th, code), ip_hash: ipHash, status: "sent", expires_at: inMinutes(CODE_TTL_MIN),
-      }).select("id").single();
-      if (ins.error) return;
+      const code = randomCode6();
+      const upd = await db.from("login_requests").update({
+        profile_id: prof.id, telegram_id: prof.telegram_id, chat_id: prof.telegram_id,
+        code_hash: await codeHash(th, code), status: "sent",
+      }).eq("id", ins.data.id);
+      if (upd.error) return;
       const sent = await tg("sendMessage", {
         chat_id: prof.telegram_id,
         parse_mode: "HTML",
