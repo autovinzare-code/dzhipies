@@ -11,8 +11,8 @@
 - `.github/dependabot.yml`: ежемесячные обновления GitHub Actions.
 - `.gitignore`: файлы `.env`, `*.key`, `*.pem` и временные файлы Supabase не попадут в GitHub даже случайно.
 - `_headers`: защита от встраивания в чужую рамку, HSTS, `nosniff`, `Permissions-Policy`. Сработает после переезда на Cloudflare Pages.
-- `index.html`: число людей на точке ожидания и фото транспорта в черновике тоже проходят `esc()` / `safeImg()`.
-- `sw.js`: офлайн-кэш больше не сохраняет непроверяемые (opaque) ответы чужих сайтов, кроме стилей Google Fonts. `VERSION` поднят до v3.
+- Найдено и исправлено в ветке входа (PR #3): число людей на точке ожидания и фото транспорта в черновике тоже проходят `esc()` / `safeImg()`.
+- `sw.js`: офлайн-кэш больше не сохраняет непроверяемые (opaque) ответы чужих сайтов, кроме стилей Google Fonts.
 
 Что осталось на стороне сервера (ветка входа через Telegram и почту, PR #3):
 - В Supabase новые функции по умолчанию доступны роли `authenticated`. Служебные `too_many()` и `display_name()` надо явно закрыть: `revoke execute on function public.too_many(regclass, text, uuid, int, interval), public.display_name(uuid) from authenticated;`

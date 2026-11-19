@@ -578,7 +578,7 @@ function glMap(box,opts){
       set("routes",fc(list.map(x=>({type:"Feature",properties:{id:x.r.id,col:x.col,shown:x.shown,sel:x.r.id===state.sel},geometry:{type:"LineString",coordinates:arcCoords(x.r.from,x.r.to)}}))),
         [{id:"routes",type:"line",layout:{"line-cap":"round"},paint:{"line-color":["get","col"],"line-width":["case",["get","sel"],5,2.5],"line-opacity":["case",["get","shown"],.9,.15]}}]);
     })},
-    waits(ws,busy){ws.forEach(h=>{const d=document.createElement("div");d.className="glwait";d.setAttribute("role","button");d.setAttribute("aria-label","Ждут транспорт: "+h.name);d.innerHTML=`<i></i><b>${esc(h.people)}</b>`;
+    waits(ws,busy){ws.forEach(h=>{const d=document.createElement("div");d.className="glwait";d.setAttribute("role","button");d.setAttribute("aria-label","Ждут транспорт: "+h.name);d.innerHTML=`<i></i><b>${h.people}</b>`;
       d.addEventListener("click",e=>{e.stopPropagation();opts.onWait&&opts.onWait(h)});
       new maplibregl.Marker({element:d,offset:[0,busy.has(h.name)?-22:0]}).setLngLat([h.lon,h.lat]).addTo(map)})},
     points(hs){ready(()=>{
@@ -941,7 +941,7 @@ function renderPublish(){
       <p class="small muted" id="pmeetinfo">${p.M?`Место встречи отмечено: <span class="mono">${p.M.lat.toFixed(5)}, ${p.M.lon.toFixed(5)}</span>`:"Пассажиры увидят точку на карте и придут прямо к ней."}</p>
       <div><p class="small muted" style="margin-bottom:6px">На чём едете</p>
         <div class="seg vtgrid" id="pvt">${Object.entries(VT).map(([k,v])=>`<button type="button" data-v="${k}" aria-pressed="${p.vt===k}">${v.t}</button>`).join("")}<button type="button" data-v="none" aria-pressed="${p.vt==="none"}">Без транспорта, пригоню чужую машину</button></div></div>
-      <div class="photobox" ${p.vt==="none"?"hidden":""}>${p.photo?`<img src="${safeImg(p.photo)}" alt="Фото вашего транспорта">`:""}
+      <div class="photobox" ${p.vt==="none"?"hidden":""}>${p.photo?`<img src="${p.photo}" alt="Фото вашего транспорта">`:""}
         <label class="btn ghost sm filebtn" for="pphoto">${p.photo?"Заменить фото":"Загрузить фото транспорта"}<input id="pphoto" type="file" accept="image/*"></label>
         ${p.photo?`<button class="btn ghost sm" type="button" id="pphotodel">Убрать</button>`:""}</div>
       <label for="pv" id="pvl" ${p.vt==="none"?"hidden":""}>${p.vt==="plane"?"Рейс":"Транспорт"}<input id="pv" value="" placeholder="${p.vt!=="none"?VT[p.vt].ph:""}"></label>
