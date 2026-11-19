@@ -154,26 +154,32 @@ async function appRequest(req: Request) {
     // Ответ всегда одинаковый, есть такой аккаунт или нет: так нельзя узнать, чья почта зарегистрирована
     const token = randomToken();
     const reply = json({ status: "sent", token, ttl: CODE_TTL_MIN * 60, bot: await getBotName() });
-    const { data: prof } = await db.from("profiles").select("id, telegram_id").eq("email", email).maybeSingle();
-    if (!prof?.telegram_id) return reply;
-    // Не больше 5 кодов в час на один аккаунт: защита от рассылки спама человеку в Telegram
-    if ((await recent({ profile_id: prof.id, kind: "login" }, 60)) >= 5) return reply;
-    const code = randomCode6(), th = await sha256(token);
-    const ins = await db.from("login_requests").insert({
-      token_hash: th, uid, kind: "login", profile_id: prof.id, telegram_id: prof.telegram_id, chat_id: prof.telegram_id,
-      code_hash: await codeHash(th, code), ip_hash: ipHash, status: "sent", expires_at: inMinutes(CODE_TTL_MIN),
-    }).select("id").single();
-    if (ins.error) return reply;
-    const sent = await tg("sendMessage", {
-      chat_id: prof.telegram_id,
-      parse_mode: "HTML",
-      protect_content: true,
-      text: `🔐 Код для входа в ${SITE}: <b>${code}</b>\n\n` +
-        `Код действует ${CODE_TTL_MIN} минут. Никому не сообщайте его: ни водителю, ни пассажиру, ни «поддержке». ` +
-        `Настоящий ${SITE} никогда не спрашивает этот код.\n\nЕсли вы сейчас не входите, нажмите «Это не я».`,
-      reply_markup: { inline_keyboard: [[{ text: "🚫 Это не я", callback_data: `no:${ins.data.id}` }]] },
-    });
-    if (!sent?.ok) await db.from("login_requests").update({ status: "failed" }).eq("id", ins.data.id);
+    // Аккаунт ищем и код отправляем уже после ответа: так и по времени ответа нельзя понять, есть ли такая почта
+    const work = (async () => {
+      const { data: prof } = await db.from("profiles").select("id, telegram_id").eq("email", email).maybeSingle();
+      if (!prof?.telegram_id) return;
+      // Не больше 10 кодов в час на один аккаунт: защита от рассылки спама человеку в Telegram
+      if ((await recent({ profile_id: prof.id, kind: "login" }, 60)) >= 10) return;
+      const code = randomCode6(), th = await sha256(token);
+      const ins = await db.from("login_requests").insert({
+        token_hash: th, uid, kind: "login", profile_id: prof.id, telegram_id: prof.telegram_id, chat_id: prof.telegram_id,
+        code_hash: await codeHash(th, code), ip_hash: ipHash, status: "sent", expires_at: inMinutes(CODE_TTL_MIN),
+      }).select("id").single();
+      if (ins.error) return;
+      const sent = await tg("sendMessage", {
+        chat_id: prof.telegram_id,
+        parse_mode: "HTML",
+        protect_content: true,
+        text: `🔐 Код для входа в ${SITE}: <b>${code}</b>\n\n` +
+          `Код действует ${CODE_TTL_MIN} минут. Никому не сообщайте его: ни водителю, ни пассажиру, ни «поддержке». ` +
+          `Настоящий ${SITE} никогда не спрашивает этот код.\n\nЕсли вы сейчас не входите, нажмите «Это не я».`,
+        reply_markup: { inline_keyboard: [[{ text: "🚫 Это не я", callback_data: `no:${ins.data.id}` }]] },
+      });
+      if (!sent?.ok) await db.from("login_requests").update({ status: "failed" }).eq("id", ins.data.id);
+    })().catch(() => {});
+    // deno-lint-ignore no-explicit-any
+    const rt = (globalThis as any).EdgeRuntime;
+    if (rt?.waitUntil) rt.waitUntil(work); else await work;
     return reply;
   }
 
@@ -201,7 +207,7 @@ async function appRequest(req: Request) {
     // Удаляем сами сессии Supabase: их токены обновления перестают работать
     for (const x of all ?? []) await db.auth.admin.deleteUser(x.uid).catch(() => {});
     await db.from("sessions").delete().eq("profile_id", pid);
-    await db.from("login_requests").update({ status: "used" }).eq("profile_id", pid).eq("status", "sent");
+    await db.from("login_requests").update({ status: "used" }).eq("profile_id", pid).in("status", ["sent", "new", "wait", "confirmed"]);
     return json({ status: "ok" });
   }
 

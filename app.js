@@ -236,7 +236,8 @@ function renderAuthLive(){
       <p class="muted">Если аккаунт с почтой <b>${esc(a.email)}</b> есть и к нему подключён Telegram, бот${a.login.bot?` <b>@${esc(a.login.bot)}</b>`:""} прислал вам код из 6 цифр.</p>
       <form class="card" id="f"><label for="oc">Код<br>${codeInput("oc")}</label>
       <button class="btn" type="submit">Войти</button>
-      <p class="small muted">Никому не сообщайте этот код. Мы никогда его не спрашиваем: ни в чате, ни по телефону.</p></form>
+      <p class="small muted">Никому не сообщайте этот код. Мы никогда его не спрашиваем: ни в чате, ни по телефону.</p>
+      <p class="small muted">Код обычно приходит за несколько секунд. Если не пришёл и после повторной отправки, подождите час: мы ограничиваем число кодов, чтобы никто не мог засыпать вас сообщениями.</p></form>
       <button class="btn ghost" id="again" type="button">Код не пришёл? Отправить ещё раз</button>
       <button class="btn ghost" id="mail" type="button">Telegram ещё не подключён? Войти кодом из письма</button>
       <button class="btn ghost" id="back" type="button">Изменить почту</button>`;
