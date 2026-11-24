@@ -1,0 +1,13 @@
+# Настройки проверки секретов (gitleaks).
+# Берём все стандартные правила и разрешаем только ОДНО: публичный ключ Supabase
+# вида sb_publishable_... Он и так виден каждому посетителю сайта, это не секрет.
+# Секретный ключ Supabase (sb_secret_... / service_role) по-прежнему даст красную проверку.
+title = "go-transfer-go gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Публичный (publishable) ключ Supabase в config.js"
+regexTarget = "secret"
+regexes = ['''^sb_publishable_[A-Za-z0-9_-]+$''']
