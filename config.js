@@ -4,6 +4,6 @@
    (Supabase → Project Settings → API: «Project URL» и «anon public» или «Publishable key»).
    Этот ключ публичный, его можно хранить в GitHub. Секретный ключ (service_role / secret) сюда НЕ вписывать. */
 window.GTG_CONFIG = {
-  supabaseUrl: "",
-  supabaseKey: ""
+  supabaseUrl: "https://dllkjcgfttcmhntgryjq.supabase.co",
+  supabaseKey: "sb_publishable_BwcKhppmhCKN4__Dji8KxA_gEjkg6Er"
 };
