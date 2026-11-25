@@ -11,13 +11,23 @@
 //
 // Секреты (Supabase → Edge Functions → Secrets): TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET,
 // ALLOWED_ORIGIN (адрес сайта без / в конце, по умолчанию https://autovinzare-code.github.io).
-// SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY Supabase подставляет сам.
+// SUPABASE_URL и SUPABASE_SECRET_KEYS (или старый SUPABASE_SERVICE_ROLE_KEY) Supabase подставляет сам.
 // В настройках функции выключите «Verify JWT»: Telegram не присылает JWT, приложение проверяется здесь.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
-const db = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+// Ключ с полным доступом к базе. В новых проектах Supabase старый SUPABASE_SERVICE_ROLE_KEY
+// может быть отключён, поэтому сначала берём новый секретный ключ (sb_secret_...) из SUPABASE_SECRET_KEYS.
+function serverKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    const k = keys.default ?? Object.values(keys)[0];
+    if (typeof k === "string" && k) return k;
+  } catch { /* нет новых ключей: берём старый */ }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+}
+const db = createClient(SB_URL, serverKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
@@ -103,13 +113,17 @@ function clientIp(req: Request) {
 // ---------- Приложение ----------
 async function appRequest(req: Request) {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: u } = await db.auth.getUser(jwt);
+  const { data: u, error: uErr } = await db.auth.getUser(jwt);
+  if (uErr) console.error("getUser failed", uErr.status ?? "", uErr.message ?? "");
   const uid = u?.user?.id;
   if (!uid) return json({ error: "no_session" }, 401);
   let body: { action?: string; token?: string; code?: string; email?: string } = {};
   try { body = await req.json(); } catch { /* пустое тело */ }
-  const myProfile = async () =>
-    (await db.from("sessions").select("profile_id").eq("uid", uid).maybeSingle()).data?.profile_id as string | undefined;
+  const myProfile = async () => {
+    const { data, error } = await db.from("sessions").select("profile_id").eq("uid", uid).maybeSingle();
+    if (error) console.error("sessions read failed", error.code ?? "", error.message ?? "");
+    return data?.profile_id as string | undefined;
+  };
 
   // Старые заявки чистим заодно
   await db.from("login_requests").delete().lt("expires_at", minutesAgo(24 * 60));
