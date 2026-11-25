@@ -22,7 +22,11 @@ const db = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
 });
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const HOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
-const ORIGIN = (Deno.env.get("ALLOWED_ORIGIN") ?? "https://autovinzare-code.github.io").replace(/\/+$/, "");
+// Если в секрет вписали полный адрес сайта (с /dzhipies/), берём из него только origin
+const ORIGIN = (() => {
+  const v = (Deno.env.get("ALLOWED_ORIGIN") ?? "").trim() || "https://autovinzare-code.github.io";
+  try { return new URL(v).origin; } catch { return v.replace(/\/+$/, ""); }
+})();
 const SITE = "go-transfer-go";
 const LINK_TTL_MIN = 10;
 const CODE_TTL_MIN = 5;

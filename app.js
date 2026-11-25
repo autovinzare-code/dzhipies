@@ -19,7 +19,7 @@ const CFG=window.GTG_CONFIG||{};
 const LIVE=!!(CFG.supabaseUrl&&CFG.supabaseKey&&/^https:\/\//.test(CFG.supabaseUrl));
 const SB=LIVE?String(CFG.supabaseUrl).replace(/\/+$/,""):"";
 function apiErr(status,j){const e=new Error(j&&(j.message||j.msg||j.error_description||j.error)||"server");e.status=status;e.code=j&&(j.code||j.error_code||j.error);return e}
-const errText=e=>e&&/[а-яё]/i.test(e.message||"")?e.message:e&&e.status===429?"Слишком много попыток. Подождите пару минут":"Нет связи с сервером. Попробуйте ещё раз";
+const errText=e=>e&&/[а-яё]/i.test(e.message||"")?e.message:e&&e.status===429?"Слишком много попыток. Подождите пару минут":e&&e.status?"Ошибка сервера ("+e.status+(e.code?" "+String(e.code).slice(0,40):"")+"). Попробуйте ещё раз":"Нет связи с сервером. Попробуйте ещё раз";
 /* Сессия Supabase живёт в localStorage (на GitHub Pages нет своего сервера для cookie). Защита: CSP, esc(), короткий срок жизни токена */
 const api={
   s:store.get("sess",null),
