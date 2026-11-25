@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>go-transfer-go</title>
+<title>gotransfer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Защита: браузер грузит код, стили и данные только с перечисленных адресов (CSP) -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/ https://unpkg.com/maplibre-gl@4.7.1/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com/maplibre-gl@4.7.1/; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.geoapify.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://*.supabase.co; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="go-transfer">
+<meta name="apple-mobile-web-app-title" content="gotransfer">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 /* Layout: one phone-width app column; dark "road" header with lane dashes, map first, bottom tab bar */
@@ -321,7 +321,7 @@ nav.tabs .keyhint{display:none}
 <div class="app">
   <header class="top">
     <div class="wrap">
-      <div class="brand">go-<b>transfer</b>-go</div>
+      <div class="brand">go<b>transfer</b></div>
       <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="installbtn" id="installbtn" type="button" aria-label="Установить приложение" title="Установить приложение на телефон или компьютер" hidden><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Установить</span></button><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
     </div>
     <div class="lane"></div>

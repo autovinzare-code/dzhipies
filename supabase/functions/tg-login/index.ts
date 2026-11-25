@@ -27,7 +27,7 @@ const ORIGIN = (() => {
   const v = (Deno.env.get("ALLOWED_ORIGIN") ?? "").trim() || "https://autovinzare-code.github.io";
   try { return new URL(v).origin; } catch { return v.replace(/\/+$/, ""); }
 })();
-const SITE = "go-transfer-go";
+const SITE = "gotransfer";
 const LINK_TTL_MIN = 10;
 const CODE_TTL_MIN = 5;
 

@@ -1,6 +1,6 @@
 {
-  "name": "go-transfer-go",
-  "short_name": "go-transfer",
+  "name": "gotransfer",
+  "short_name": "gotransfer",
   "description": "Поездки, посылки и перевозка машин по Европе",
   "lang": "ru",
   "id": "./",
