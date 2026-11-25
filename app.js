@@ -272,7 +272,7 @@ function userFromProfile(p){const x=p.extra&&typeof p.extra==="object"&&!Array.i
 const pushProfile=()=>api.patch("profiles?id=eq."+state.user.id,{name:state.user.name,extra:pickExtra(state.user)});
 function stopTgPoll(){if(live.poll){clearInterval(live.poll);live.poll=null}}
 const okEmail=v=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
-const codeInput=id=>`<input id="${id}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required class="mono" style="font-size:22px;letter-spacing:6px">`;
+const codeInput=(id,max=6)=>`<input id="${id}" inputmode="numeric" autocomplete="one-time-code" maxlength="${max}" pattern="[0-9]*" required class="mono" style="font-size:22px;letter-spacing:6px">`;
 async function finishLogin(){
   const p=await api.rpc("my_profile");if(!p||!p.id)throw new Error("no profile");
   const u=userFromProfile(p),a=state.auth;a.prof=u;
@@ -380,7 +380,7 @@ function renderAuthLive(){
   }else if(a.step==="email"){
     const reg=a.mode!=="login";
     view.innerHTML=`<h1>${reg?"Регистрация":"Вход кодом из письма"}</h1>
-      <p class="muted">${reg?"Пришлём на почту код из 6 цифр, чтобы убедиться, что почта ваша. Пароль не нужен.":"Подходит, только если к аккаунту ещё не подключён Telegram."}</p>
+      <p class="muted">${reg?"Пришлём на почту код, чтобы убедиться, что почта ваша. Пароль не нужен.":"Подходит, только если к аккаунту ещё не подключён Telegram."}</p>
       <form class="card" id="f"><label for="em">Электронная почта<input id="em" type="email" inputmode="email" autocomplete="email" required value="${esc(a.email||"")}"></label>
       <button class="btn" type="submit">Получить код на почту</button>
       ${reg?`<p class="small muted">После почты подключите Telegram: туда будут приходить коды для входа. Это бесплатно, без SMS.</p>`:""}</form>
@@ -394,7 +394,7 @@ function renderAuthLive(){
       catch(e){busy(b,false);toast(e.status===429?"Код уже отправлен. Подождите минуту и попробуйте снова":"Не удалось отправить письмо. Попробуйте позже")}};
   }else if(a.step==="email-code"){
     view.innerHTML=`<h1>Введите код из письма</h1><p class="muted">Отправили на <b>${esc(a.email)}</b>. Если письма нет, проверьте папку «Спам».</p>
-      <form class="card" id="f"><label for="oc">Код<br>${codeInput("oc")}</label>
+      <form class="card" id="f"><label for="oc">Код<br>${codeInput("oc",10)}</label>
       <button class="btn" type="submit">Подтвердить</button></form>
       <button class="btn ghost" id="back" type="button">Изменить почту</button>`;
     $("#back").onclick=()=>{a.step="email";render()};
