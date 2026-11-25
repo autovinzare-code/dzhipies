@@ -1205,7 +1205,7 @@ function supportAnswer(v){const f=FAQ.find(([re])=>re.test(v));return f?f[1]:"С
 function openSupport(){
   const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   const draw=s=>{
-    s.querySelector(".sheet").innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span class="ava">?</span><div><b>Поддержка go-transfer-go</b><p class="small muted">Спросите, как пользоваться приложением</p></div></div>
+    s.querySelector(".sheet").innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span class="ava">?</span><div><b>Поддержка gotransfer</b><p class="small muted">Спросите, как пользоваться приложением</p></div></div>
       <div class="chatlog" style="min-height:160px"><div class="msg">Здравствуйте! Я помогу разобраться с приложением. Выберите вопрос или напишите свой.</div>
         ${state.support.map(m=>`<div class="msg ${m.me?"me":""}">${esc(m.text)}<time>${tm(m.t)}</time></div>`).join("")}</div>
       <div class="chips">${SUPPORT_Q.map(q=>`<button type="button">${q}</button>`).join("")}</div>
@@ -1300,19 +1300,19 @@ function verifySheet(){
 /* ---------- Поделиться приложением ---------- */
 const SITE_URL="https://autovinzare-code.github.io/dzhipies/";
 const shareUrl=()=>/^https?:$/.test(location.protocol)&&!/claude|anthropic/.test(location.host)?location.href.split("#")[0]:SITE_URL;
-const SHARE_TEXT="go-transfer-go: попутки, посылки и перевозка машин по Европе. Смотри на карте, кто едет в твою сторону, или бери попутчиков сам.";
+const SHARE_TEXT="gotransfer: попутки, посылки и перевозка машин по Европе. Смотри на карте, кто едет в твою сторону, или бери попутчиков сам.";
 function shareCard(){
   return state.shared
-    ?`<div class="card sharecard"><h2>Спасибо, вы нам помогли!</h2><p>Каждый, кто узнает о go-transfer-go от вас, быстрее найдёт попутку или водителя для посылки.</p><button class="btn" type="button" data-share>Поделиться ещё раз</button></div>`
+    ?`<div class="card sharecard"><h2>Спасибо, вы нам помогли!</h2><p>Каждый, кто узнает о gotransfer от вас, быстрее найдёт попутку или водителя для посылки.</p><button class="btn" type="button" data-share>Поделиться ещё раз</button></div>`
     :`<div class="card sharecard"><h2>Поделись один раз, помоги нам</h2><p>Чем больше людей в приложении, тем быстрее находится попутка, посылка уезжает в тот же день, а водители не едут с пустыми местами.</p><button class="btn" type="button" data-share>Поделиться приложением</button></div>`;
 }
 function markShared(){trk("share");if(!state.shared){state.shared=true;save();toast("Спасибо, что поделились!")}}
 async function shareApp(){
   const url=shareUrl();
-  if(navigator.share){try{await navigator.share({title:"go-transfer-go",text:SHARE_TEXT,url});markShared();rerenderShare();return}catch(e){if(e&&e.name==="AbortError")return}}
+  if(navigator.share){try{await navigator.share({title:"gotransfer",text:SHARE_TEXT,url});markShared();rerenderShare();return}catch(e){if(e&&e.name==="AbortError")return}}
   const t=encodeURIComponent(SHARE_TEXT),u=encodeURIComponent(url),tu=encodeURIComponent(SHARE_TEXT+" "+url);
   const links=[["WhatsApp",`https://wa.me/?text=${tu}`],["Telegram",`https://t.me/share/url?url=${u}&text=${t}`],["Facebook",`https://www.facebook.com/sharer/sharer.php?u=${u}`],["Одноклассники",`https://connect.ok.ru/offer?url=${u}&title=${t}`],["ВКонтакте",`https://vk.com/share.php?url=${u}&title=${t}`],["Viber",`viber://forward?text=${tu}`]];
-  sheet(`<h2>Поделиться go-transfer-go</h2>
+  sheet(`<h2>Поделиться gotransfer</h2>
     <p class="small muted">Выберите, где поделиться. Можно отправить другу или выложить у себя на странице.</p>
     <div class="sharegrid">${links.map(([n,h])=>`<a href="${h}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")}</div>
     <p class="small muted">Или скопируйте ссылку и вставьте куда угодно, например в Instagram:</p>
