@@ -614,3 +614,11 @@ drop policy if exists events_admin_read on public.events;
 create policy events_admin_read on public.events for select to authenticated using (public.is_admin());
 revoke execute on function public.check_login_code(text, uuid, text) from authenticated;
 grant execute on function public.check_login_code(text, uuid, text) to service_role;
+
+-- Функция tg-login работает с базой как service_role. В новых проектах Supabase таблицы,
+-- созданные через SQL, не получают права для service_role автоматически, поэтому даём их явно.
+-- service_role есть только на сервере (в функции), в браузер он не попадает.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;

@@ -139,7 +139,7 @@ async function appRequest(req: Request) {
     const { error } = await db.from("login_requests").insert({
       token_hash: await sha256(token), uid, kind: "link", profile_id: pid, code, expires_at: inMinutes(LINK_TTL_MIN),
     });
-    if (error) return json({ error: "db" }, 500);
+    if (error) { console.error("db write failed", error.code ?? "", error.message ?? ""); return json({ error: "db" }, 500); }
     return json({ link: `https://t.me/${bot}?start=${token}`, token, code, ttl: LINK_TTL_MIN * 60 });
   }
 
@@ -213,7 +213,7 @@ async function appRequest(req: Request) {
     if (code.length !== 6) return json({ status: "bad" });
     const th = await sha256(body.token);
     const { data, error } = await db.rpc("check_login_code", { p_token_hash: th, p_uid: uid, p_code_hash: await codeHash(th, code) });
-    if (error) return json({ error: "db" }, 500);
+    if (error) { console.error("db write failed", error.code ?? "", error.message ?? ""); return json({ error: "db" }, 500); }
     if (data?.status === "ok" && data.telegram_id) {
       const when = new Date().toLocaleString("ru-RU", { timeZone: "Europe/Chisinau", dateStyle: "short", timeStyle: "short" });
       await tg("sendMessage", {
