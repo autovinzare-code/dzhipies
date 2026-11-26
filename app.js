@@ -126,7 +126,8 @@ let state={
   shared:store.get("shared",false),
   reviews:LIVE?[]:store.get("reviews",[]),
   kind:"all",
-  A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
+  /* В рабочем режиме поиск открывается пустым, в демо показываем пример Милан → Кишинёв */
+  A:LIVE?null:place("Милан"),B:LIVE?null:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A",vt:"car"},
   vt:"all",
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
