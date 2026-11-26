@@ -580,7 +580,7 @@ const GL={on:false,failed:false,style:"https://tiles.openfreemap.org/styles/libe
 let curGL=null;const GLVIEW={};
 /* Ключ Geoapify (бесплатно 3000 запросов в день, коммерческое использование разрешено): поиск адресов и маршруты по дорогам.
    Пустой ключ: маршруты считает демо-сервер OSRM, адрес ищется в Nominatim только по кнопке «Найти» (подсказки при наборе их правила запрещают) */
-const GEO_KEY="";
+const GEO_KEY="9ac2753f67bd47dc959d97ecf10e95ce"; // gitleaks:allow (публичный ключ для браузера, ограничен сайтом в Geoapify)
 const geoUrl=(path,q)=>`https://api.geoapify.com/v1/${path}?${new URLSearchParams({...q,apiKey:GEO_KEY})}`;
 const reMapTabs=()=>{if(state.user&&(state.tab==="map"||state.tab==="publish"))render(true)};
 function glFail(){if(GL.on||GL.failed)return;GL.failed=true;reMapTabs()}
