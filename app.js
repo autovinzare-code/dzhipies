@@ -808,11 +808,14 @@ function renderMap(){
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
   $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
 }
-function selectRoute(id){
+function selectRoute(id,fromCard){
   {const r=state.routes.find(x=>x.id===id);if(r&&state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name})}
   state.sel=id;mapCtx.select(id);
   $$(".offer").forEach(o=>o.classList.toggle("sel",o.dataset.id===id));
-  const el=$(`.offer[data-id="${id}"]`);el&&el.scrollIntoView({behavior:"smooth",block:"center"});
+  const el=$(`.offer[data-id="${id}"]`);
+  /* Нажали карточку: показываем маршрут на карте (на телефоне карта выше списка, прокручиваем к ней). Нажали на карте: прокручиваем к карточке */
+  if(fromCard){const r0=state.routes.find(x=>x.id===id);if(r0)mapCtx.focus([r0.from,r0.to]);if(innerWidth<900){const mb=$("#mb");mb&&mb.scrollIntoView({behavior:"smooth",block:"center"})}}
+  else el&&el.scrollIntoView({behavior:"smooth",block:"center"});
   if(!GL.on)return;
   const r=state.routes.find(x=>x.id===id),info=()=>$(`.offer[data-id="${id}"] .roadinfo`);
   if(info())info().textContent="Строим маршрут по дорогам…";
@@ -900,7 +903,7 @@ function offerCard(r){
 function bindOffers(){
   $$("[data-chat]").forEach(b=>b.onclick=e=>{e.stopPropagation();openChatFor(b.dataset.chat)});
   $$("[data-book]").forEach(b=>b.onclick=e=>{e.stopPropagation();bookSheet(b.dataset.book)});
-  $$(".offer").forEach(o=>o.onclick=()=>selectRoute(o.dataset.id));
+  $$(".offer").forEach(o=>o.onclick=()=>selectRoute(o.dataset.id,true));
 }
 
 /* ---------- Бронирование и оплата ---------- */
