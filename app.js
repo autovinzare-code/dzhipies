@@ -1458,7 +1458,9 @@ function goTab(t){state.tab=t;if(t==="chats")state.openChat=null;save();render()
   if(LIVE&&(t==="map"||t==="profile"))loadAll().then(()=>{if(state.user&&state.tab===t&&!$(".scrim"))render()},()=>{})}
 $$("#tabs button[data-tab]").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
 /* Название в шапке ведёт на главную (карту) */
-$("#brand").onclick=e=>{e.preventDefault();closeSheet();if(state.user)goTab("map");scrollTo({top:0,behavior:"smooth"})};
+$("#brand").onclick=e=>{e.preventDefault();closeSheet();
+  if(state.user){Object.assign(state,{A:null,B:null,kind:"all",vt:"all",maxp:null,sel:null,pick:null});goTab("map")}
+  scrollTo({top:0,behavior:"smooth"})};
 
 /* ---------- Горячие клавиши для компьютера ---------- */
 const TAB_KEYS=["map","publish","chats","profile"];
