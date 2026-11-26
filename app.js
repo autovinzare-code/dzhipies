@@ -126,7 +126,8 @@ let state={
   shared:store.get("shared",false),
   reviews:LIVE?[]:store.get("reviews",[]),
   kind:"all",
-  A:place("Милан"),B:place("Кишинёв"),pick:null,sel:null,
+  /* В рабочем режиме поиск открывается пустым, в демо показываем пример Милан → Кишинёв */
+  A:LIVE?null:place("Милан"),B:LIVE?null:place("Кишинёв"),pick:null,sel:null,
   pub:{kind:"seat",A:null,B:null,pick:"A",vt:"car"},
   vt:"all",
   auth:{step:"phone",phone:"+373 69 123 456",sent:null},
@@ -806,7 +807,7 @@ function renderMap(){
   $$("#vts button").forEach(b=>b.onclick=()=>{state.vt=b.dataset.v;state.sel=null;renderMap()});
   {let tm=0;$("#maxp").oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{const v=e.target.value.trim();state.maxp=v===""?null:Math.max(0,+v);state.sel=null;renderMap();const el=$("#maxp");el.focus()},600)}}
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
-  $("#reset").onclick=()=>{state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
+  $("#reset").onclick=()=>{delete GLVIEW.map;state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
 }
 function selectRoute(id,fromCard){
   {const r=state.routes.find(x=>x.id===id);if(r&&state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name})}
@@ -1462,7 +1463,7 @@ function goTab(t){state.tab=t;if(t==="chats")state.openChat=null;save();render()
 $$("#tabs button[data-tab]").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
 /* Название в шапке ведёт на главную (карту) */
 $("#brand").onclick=e=>{e.preventDefault();closeSheet();
-  if(state.user){Object.assign(state,{A:null,B:null,kind:"all",vt:"all",maxp:null,sel:null,pick:null});goTab("map")}
+  if(state.user){Object.assign(state,{A:null,B:null,kind:"all",vt:"all",maxp:null,sel:null,pick:null});delete GLVIEW.map;goTab("map")}
   scrollTo({top:0,behavior:"smooth"})};
 
 /* ---------- Горячие клавиши для компьютера ---------- */
