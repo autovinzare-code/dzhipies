@@ -1,7 +1,7 @@
 /* Офлайн-режим go-transfer-go.
    Файлы приложения хранятся в кэше телефона, поэтому оно открывается и без интернета.
    После изменения index.html или других файлов увеличьте VERSION, чтобы у людей скачалась новая версия. */
-const VERSION = "v10";
+const VERSION = "v11";
 const APP = "gtg-app-" + VERSION;
 const LIBS = "gtg-libs-" + VERSION;
 
@@ -43,6 +43,8 @@ self.addEventListener("fetch", e => {
   const url = new URL(req.url);
 
   // Страница приложения: сначала сеть (свежая версия), без сети — из кэша.
+  // Отдельные страницы (privacy.html) не подменяют кэш приложения.
+  if (req.mode === "navigate" && url.pathname.endsWith(".html") && !url.pathname.endsWith("/index.html")) return;
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req)
