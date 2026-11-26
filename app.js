@@ -765,8 +765,20 @@ function matches(r){
   return r.at>Date.now()-H;
 }
 function renderMap(){
+  if(state.detail){const r=state.routes.find(x=>x.id===state.detail);if(r)return renderTrip(r);state.detail=null}
   const kinds=[["all","Все",null],...Object.entries(KINDS).map(([k,v])=>[k,v.t,v.color])];
   view.innerHTML=`
+    <section class="card hero" aria-label="Что такое gotransfer">
+      <h1>Попутки, посылки и перевозки по Европе</h1>
+      <p>Передайте посылку, найдите попутчиков или пассажиров, перевозчика для машины, свободный трал, место в автобусе или маршрутке. У компаний и у частных водителей.</p>
+      <div class="hero-acts"><button class="btn sm" id="hgo" type="button">Я еду, могу взять</button><button class="btn ghost sm" id="hwant" type="button">Хочу отправить или доехать</button></div>
+    </section>
+    <div class="mapbox ${state.pick?"picking":""}" id="mb">
+      <div class="mapbar"><span class="pill" id="maphint"></span></div>
+      <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div>
+    </div>
+    <div class="legend"><span><i class="dot" style="background:var(--dep);width:12px;height:12px"></i>Отправление</span><span><i class="dot" style="background:var(--arr);width:12px;height:12px"></i>Прибытие</span><span><i class="dot" style="background:var(--wait);width:12px;height:12px"></i>Ждут транспорт</span><span>Цифра: сколько поездок или людей</span></div>
+    <p class="small muted">${mapNote()} Линии показывают, кто откуда куда едет. Нажмите на поездку, чтобы увидеть точный маршрут.</p>
     <div class="pickbar">
       <button class="pick" id="pA" aria-pressed="${state.pick==="A"}"><small>Откуда</small><span>${state.A?esc(state.A.name):"Любой город"}</span></button>
       <button class="pick" id="pB" aria-pressed="${state.pick==="B"}"><small>Куда</small><span>${state.B?esc(state.B.name):"Любой город"}</span></button>
@@ -775,19 +787,14 @@ function renderMap(){
     <div class="seg" id="kinds">${kinds.map(([k,t,c])=>`<button type="button" data-k="${k}" aria-pressed="${state.kind===k}">${c?`<i class="dot" style="background:var(${c})"></i>`:""}${t}</button>`).join("")}</div>
     <label class="pricef" for="maxp">${state.kind==="all"?"Моя цена до, €":`Моя цена ${KINDS[state.kind].price} до, €`}<input id="maxp" type="number" inputmode="decimal" min="0" step="any" placeholder="любая" value="${state.maxp??""}"></label>
     ${searchForm(state)}
-    <div class="mapbox ${state.pick?"picking":""}" id="mb">
-      <div class="mapbar"><span class="pill" id="maphint"></span></div>
-      <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div>
-    </div>
-    <div class="legend"><span><i class="dot" style="background:var(--dep);width:12px;height:12px"></i>Отправление</span><span><i class="dot" style="background:var(--arr);width:12px;height:12px"></i>Прибытие</span><span><i class="dot" style="background:var(--wait);width:12px;height:12px"></i>Ждут транспорт</span><span>Цифра: сколько поездок или людей</span></div>
-    <p class="small muted">${mapNote()}</p>
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 id="cnt"></h2><button class="btn ghost sm" id="reset" type="button">Сбросить</button></div>
     <button class="btn ghost" id="wantbtn" type="button">Не нашли транспорт? Поставить точку ожидания</button>
     <p class="small muted">Цены ориентировочные. Окончательную цену вы согласуете с водителем во внутреннем чате.</p>
     <div class="list" id="offers"></div>
     ${shareCard()}`;
   const mb=$("#mb");
-  const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onWait:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else waitSheet(h)},onHub:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else citySheet(h,h.t==="dep"?"out":"in")},onSelect:id=>selectRoute(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
+  const m=makeMap(mb,{picking:()=>!!state.pick,onCity:c=>{if(state.pick)setPlace(state,c,renderMap);else citySheet(c)},onWait:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else waitSheet(h)},onHub:h=>{if(state.pick)setPlace(state,{name:h.name,lat:h.lat,lon:h.lon},renderMap);else citySheet(h,h.t==="dep"?"out":"in")},onSelect:id=>openTrip(id),onPick:(lat,lon)=>{if(state.pick)setPoint(state,lat,lon,renderMap)}});
+  $("#hgo").onclick=()=>goTab("publish");$("#hwant").onclick=()=>newWaitSheet();
   mapCtx=m;
   const list=state.routes.filter(matches).sort((a,b)=>a.at-b.at);
   const shown=new Set(list.map(r=>r.id));
@@ -808,6 +815,48 @@ function renderMap(){
   {let tm=0;$("#maxp").oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{const v=e.target.value.trim();state.maxp=v===""?null:Math.max(0,+v);state.sel=null;renderMap();const el=$("#maxp");el.focus()},600)}}
   $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
   $("#reset").onclick=()=>{delete GLVIEW.map;state.A=null;state.B=null;state.kind="all";state.vt="all";state.maxp=null;state.sel=null;state.pick=null;renderMap()};
+}
+/* ---------- Страница одной поездки: точный маршрут по дорогам, кто везёт, чат и бронь ---------- */
+function openTrip(id){const r=state.routes.find(x=>x.id===id);if(!r)return;
+  if(state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name});
+  closeSheet();state.sel=id;state.detail=id;state.tab="map";
+  try{history.pushState({trip:id},"")}catch(e){}
+  render()}
+function closeTrip(){if(!state.detail)return;const id=state.detail;state.detail=null;delete GLVIEW.map;render();
+  const el=$(`.offer[data-id="${id}"]`);if(el)el.scrollIntoView({block:"center"})}
+addEventListener("popstate",()=>{if(state.detail)closeTrip()});
+function renderTrip(r){
+  const w=when(r.at),mine=r.mine,P=person(r.driver);
+  view.innerHTML=`
+    <div><button class="btn ghost sm" id="tback" type="button">← Все поездки</button></div>
+    <div class="trip-h"><h1>${esc(r.from.name)} → ${esc(r.to.name)}</h1><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
+    <p class="muted" style="margin:0"><span class="mono">${w.txt}</span> · <span id="tkm">≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км</span></p>
+    <div class="mapbox" id="mb">
+      <div class="mapbar"><span class="pill" id="troad">Строим маршрут по дорогам…</span></div>
+      <div class="zoom"><button type="button" id="zin" aria-label="Приблизить">+</button><button type="button" id="zout" aria-label="Отдалить">−</button></div>
+    </div>
+    <div class="card trip-who">
+      <div class="small muted">Кто везёт</div>
+      <div>${nameBtn(r.driver)} <span class="muted">${ratingTxt(P)}</span></div>
+      <div class="small">${esc(r.vehicle)}</div>
+      ${safeImg(r.photo)?`<img class="vphoto" src="${safeImg(r.photo)}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
+      <div class="caps"><span class="pill ${isBus(r)?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
+      ${r.meet&&r.meet.street?`<div class="small"><b>Отправление:</b> ${esc(r.meet.city)}, ${esc(r.meet.street)}</div>`:""}
+      ${r.note?`<p class="small" style="margin:0">${esc(r.note)}</p>`:""}
+    </div>
+    <div class="acts">${mine?`<span class="pill ok">Ваш маршрут, ждите сообщений</span>`:`<button class="btn" id="tchat" type="button">Написать в чат</button><button class="btn ghost" id="tbook" type="button">Забронировать</button>`}</div>
+    <p class="small muted">Цены ориентировочные. Окончательную цену вы согласуете с водителем во внутреннем чате.</p>`;
+  const m=makeMap($("#mb"),{picking:()=>false,onSelect:()=>{}});mapCtx=m;
+  m.routes([{r,col:css(KINDS[mainKind(r)].color),shown:true}]);
+  m.pin(r.from,"А · "+r.from.name,css("--ink"));m.pin(r.to,"Б · "+r.to.name,css("--warn"));
+  m.focus([r.from,r.to]);
+  $("#zin").onclick=()=>m.zoomBy(1.6);$("#zout").onclick=()=>m.zoomBy(1/1.6);
+  $("#tback").onclick=()=>{try{if(history.state&&history.state.trip){history.back();return}}catch(e){}closeTrip()};
+  if(!mine){$("#tchat").onclick=()=>openChatFor(r.id);$("#tbook").onclick=()=>bookSheet(r.id)}
+  const hint=$("#troad");
+  if(!GL.on){hint.textContent="Маршрут А → Б";return}
+  roadRoute(r).then(x=>{if(state.detail!==r.id)return;m.routes([]);m.road(x.geo);hint.textContent=`По дорогам: ${x.km} км, в пути ≈${Math.round(x.h)} ч`;$("#tkm").textContent=`${x.km} км по дорогам`})
+    .catch(()=>{if(state.detail===r.id)hint.textContent="Маршрут по дорогам сейчас не построить, линия показана напрямую"});
 }
 function selectRoute(id,fromCard){
   {const r=state.routes.find(x=>x.id===id);if(r&&state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name})}
@@ -904,7 +953,7 @@ function offerCard(r){
 function bindOffers(){
   $$("[data-chat]").forEach(b=>b.onclick=e=>{e.stopPropagation();openChatFor(b.dataset.chat)});
   $$("[data-book]").forEach(b=>b.onclick=e=>{e.stopPropagation();bookSheet(b.dataset.book)});
-  $$(".offer").forEach(o=>o.onclick=()=>selectRoute(o.dataset.id,true));
+  $$(".offer").forEach(o=>o.onclick=()=>openTrip(o.dataset.id));
 }
 
 /* ---------- Бронирование и оплата ---------- */
@@ -1458,7 +1507,7 @@ function render(keep){
   if(!state.seenIntro)showIntro(0);
 }
 $("#fab").onclick=openSupport;$("#helpintro").onclick=()=>showIntro(0);
-function goTab(t){state.tab=t;if(t==="chats")state.openChat=null;save();render();
+function goTab(t){state.tab=t;state.detail=null;if(t==="chats")state.openChat=null;save();render();
   if(LIVE&&(t==="map"||t==="profile"))loadAll().then(()=>{if(state.user&&state.tab===t&&!$(".scrim"))render()},()=>{})}
 $$("#tabs button[data-tab]").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
 /* Название в шапке ведёт на главную (карту) */
