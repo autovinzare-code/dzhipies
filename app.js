@@ -769,7 +769,7 @@ function renderMap(){
   const kinds=[["all","Все",null],...Object.entries(KINDS).map(([k,v])=>[k,v.t,v.color])];
   view.innerHTML=`
     <section class="card hero" aria-label="Что такое gotransfer">
-      <h1>Попутки, посылки и перевозки по Европе</h1>
+      <h1>Попутки, посылки или, может быть, свободный трал?</h1>
       <p>Передайте посылку, найдите попутчиков или пассажиров, перевозчика для машины, свободный трал, место в автобусе или маршрутке. У компаний и у частных водителей.</p>
       <div class="hero-acts"><button class="btn sm" id="hgo" type="button">Я еду, могу взять</button><button class="btn ghost sm" id="hwant" type="button">Хочу отправить или доехать</button></div>
     </section>
