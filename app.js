@@ -679,14 +679,21 @@ const mapNote=()=>GL.on?`Карта © OpenStreetMap, OpenFreeMap. Маршру�
 
 /* Поиск мест и маршрутов по дорогам */
 const roadCache={};
+/* Маршрут по дорогам: сначала Geoapify, если не вышло, то OSRM. Причину ошибки сохраняем, чтобы показать её на экране. */
+async function getJson(url,who){let res;try{res=await fetch(url)}catch(e){throw new Error(who+": нет связи")}
+  let j=null;try{j=await res.json()}catch(e){}
+  if(!res.ok)throw new Error(who+": ошибка "+res.status+(j&&(j.message||j.error)?" ("+String(j.message||j.error).slice(0,80)+")":""));
+  return j}
 async function roadRoute(r){
   if(roadCache[r.id])return roadCache[r.id];
-  if(GEO_KEY){const j=await (await fetch(geoUrl("routing",{waypoints:`${r.from.lat},${r.from.lon}|${r.to.lat},${r.to.lon}`,mode:"drive"}))).json();
-    const f=j.features&&j.features[0];if(!f)throw new Error("no route");
-    return roadCache[r.id]={geo:f.geometry,km:Math.round(f.properties.distance/1000),h:f.properties.time/3600}}
-  const j=await (await fetch(`https://router.project-osrm.org/route/v1/driving/${r.from.lon},${r.from.lat};${r.to.lon},${r.to.lat}?overview=simplified&geometries=geojson`)).json();
-  if(!j.routes||!j.routes[0])throw new Error("no route");
-  return roadCache[r.id]={geo:j.routes[0].geometry,km:Math.round(j.routes[0].distance/1000),h:j.routes[0].duration/3600};
+  const errs=[];
+  if(GEO_KEY)try{const j=await getJson(geoUrl("routing",{waypoints:`${r.from.lat},${r.from.lon}|${r.to.lat},${r.to.lon}`,mode:"drive"}),"Geoapify");
+    const f=j&&j.features&&j.features[0];if(!f||!f.geometry)throw new Error("Geoapify: маршрут не найден");
+    return roadCache[r.id]={geo:f.geometry,km:Math.round(f.properties.distance/1000),h:f.properties.time/3600}}catch(e){errs.push(e.message)}
+  try{const j=await getJson(`https://router.project-osrm.org/route/v1/driving/${r.from.lon},${r.from.lat};${r.to.lon},${r.to.lat}?overview=simplified&geometries=geojson`,"OSRM");
+    if(!j||!j.routes||!j.routes[0])throw new Error("OSRM: маршрут не найден");
+    return roadCache[r.id]={geo:j.routes[0].geometry,km:Math.round(j.routes[0].distance/1000),h:j.routes[0].duration/3600}}catch(e){errs.push(e.message)}
+  throw new Error(errs.join("; "));
 }
 async function geoRev(lat,lon){const j=await (await fetch(geoUrl("geocode/reverse",{lat,lon,lang:"ru",format:"json"}))).json();return (j.results||[])[0]||{}}
 async function revGeo(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon),n=a.city||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}
@@ -856,7 +863,7 @@ function renderTrip(r){
   const hint=$("#troad");
   if(!GL.on){hint.textContent="Маршрут А → Б";return}
   roadRoute(r).then(x=>{if(state.detail!==r.id)return;m.routes([]);m.road(x.geo);hint.textContent=`По дорогам: ${x.km} км, в пути ≈${Math.round(x.h)} ч`;$("#tkm").textContent=`${x.km} км по дорогам`})
-    .catch(()=>{if(state.detail===r.id)hint.textContent="Маршрут по дорогам сейчас не построить, линия показана напрямую"});
+    .catch(e=>{if(state.detail===r.id)hint.textContent="Маршрут по дорогам сейчас не построить, линия показана напрямую. Причина: "+(e&&e.message||"неизвестна")});
 }
 function selectRoute(id,fromCard){
   {const r=state.routes.find(x=>x.id===id);if(r&&state.sel!==id)trk("route_open",{route:r.from.name+" → "+r.to.name})}
