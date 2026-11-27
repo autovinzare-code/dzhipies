@@ -202,6 +202,9 @@ textarea{min-height:80px;resize:vertical}
 .hero-acts{display:flex;flex-wrap:wrap;gap:8px}
 .hero .btn.ghost{color:var(--road-ink);border-color:rgb(255 255 255 / .35);background:transparent}
 .trip-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.posted{display:inline-flex;align-items:center;gap:3px;font:500 11px var(--f-mono);color:var(--muted);white-space:nowrap}
+.posted svg{width:11px;height:11px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.trip-h .side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
 .trip-h h1{margin:0;font-size:22px}
 .trip-who{display:grid;gap:8px}
 .pickbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -211,8 +214,8 @@ textarea{min-height:80px;resize:vertical}
 .pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
 .offer{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
 .offer .route-t{font-weight:600;min-width:0}
-.offer .side{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.offer .meta{font-size:13px;color:var(--muted);min-width:0}
+.offer .side{grid-row:1;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.offer .meta{grid-column:1/3;font-size:13px;color:var(--muted);min-width:0}
 .offer .caps{grid-column:1/3;display:flex;gap:6px;flex-wrap:wrap}
 .offer .acts{grid-column:1/3;display:flex;gap:8px}
 .offer .acts .btn{flex:1}
@@ -259,12 +262,16 @@ nav.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;he
 .admev time{color:var(--muted,inherit);opacity:.75;padding-top:1px}
 .admev span{min-width:0;overflow-wrap:anywhere}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--road);color:var(--road-ink);padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+label.langbtn{position:relative;display:inline-flex;flex-direction:row;align-items:center;gap:4px;height:30px;padding:0 10px;border-radius:15px;border:1px solid rgba(255,255,255,.35);color:var(--road-ink);font:600 12px var(--f-mono);flex:none;cursor:pointer}
+.langbtn svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2.4}
+.langbtn select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;border:0}
+.langbtn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .installbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:15px;border:0;background:var(--accent);color:var(--accent-ink);font:600 13px var(--f-body);cursor:pointer;flex:none;white-space:nowrap}
 .installbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .installbtn[hidden]{display:none}
 .brand{white-space:nowrap;color:inherit;text-decoration:none;cursor:pointer;border-radius:8px}
 .brand:focus-visible{outline:2px solid currentColor;outline-offset:4px}
-@media (max-width:430px){.installbtn span{display:none}.installbtn{width:30px;padding:0;justify-content:center}}
+@media (max-width:430px){label.langbtn{padding:0 8px}label.langbtn svg{display:none}.who .mono{white-space:nowrap}.installbtn span{display:none}.installbtn{width:30px;padding:0;justify-content:center}}
 .steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
 .steps svg{width:18px;height:18px;vertical-align:-3px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .empty{text-align:center;padding:22px 12px;color:var(--muted)}
@@ -332,7 +339,7 @@ nav.tabs .keyhint{display:none}
   <header class="top">
     <div class="wrap">
       <a class="brand" id="brand" href="./" aria-label="gotransfer: на главную" title="На главную">go<b>transfer</b></a>
-      <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="installbtn" id="installbtn" type="button" aria-label="Установить приложение" title="Установить приложение на телефон или компьютер" hidden><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Установить</span></button><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
+      <div style="display:flex;align-items:center;gap:10px"><div class="who" id="who" translate="no"></div><span id="langslot"></span><button class="installbtn" id="installbtn" type="button" aria-label="Установить приложение" title="Установить приложение на телефон или компьютер" hidden><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Установить</span></button><button class="helpbtn" id="helpintro" type="button" aria-label="Как пользоваться" title="Как пользоваться" hidden>?</button></div>
     </div>
     <div class="lane"></div>
   </header>
@@ -352,5 +359,6 @@ nav.tabs .keyhint{display:none}
 <script src="euroads.js"></script>
 <script src="eucities.js"></script>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 <script src="pwa.js"></script>

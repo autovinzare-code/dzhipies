@@ -11,8 +11,11 @@ const clip=(v,n)=>String(v==null?"":v).trim().slice(0,n);
 const MAX_FILE=15*1024*1024;
 const CAP_MAX={seat:60,parcel:5000,car:10,drive:3};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const eur=n=>(Math.round(n*100)/100).toLocaleString("ru-RU",{maximumFractionDigits:2})+" €";
+const eur=n=>(Math.round(n*100)/100).toLocaleString(LOC,{maximumFractionDigits:2})+" €";
 const H=36e5;
+/* Язык интерфейса (i18n.js): LOC для дат и чисел, T() переводит готовую фразу */
+const I18=window.I18N||{lang:I18.lang,loc:LOC,t:s=>s,city:n=>n};
+const LOC=I18.loc,T=s=>I18.t(s);
 
 /* ---------- Сервер: Supabase + вход через Telegram или почту. Пустой config.js = демо-режим ---------- */
 const CFG=window.GTG_CONFIG||{};
@@ -95,7 +98,7 @@ const seedRoutes=[
   R("t1","Франкфурт","Кишинёв",28,"Валерий","MAN, тент 20 т",{parcel:2000},{parcel:.6},4.7,"Беру крупные грузы: мебель, паллеты, технику.")
 ];
 const VT_OF={r1:"car",r2:"minibus",r3:"minibus",r4:"minibus",r5:"minibus",r6:"minibus",r7:"trailer",r8:"trailer",r9:"tow",r10:"car",r11:"minibus",r12:"car",r13:"minibus",r14:"minibus",r15:"bus",r16:"car",r17:"car",r18:"minibus",p1:"plane",m1:"moto",t1:"truck"};
-seedRoutes.forEach(r=>{if(VT_OF[r.id])r.vt=VT_OF[r.id]});
+seedRoutes.forEach((r,i)=>{if(VT_OF[r.id])r.vt=VT_OF[r.id];r.created=Math.round((now-(2+i*5.5)*H)/6e4)*6e4});
 const MEET_OF={r1:["Кишинёв","ул. Каля Мошилор, 2/1, Северный автовокзал"],r3:["Милан","Piazza Duca d'Aosta, у вокзала Milano Centrale"],r15:["Кишинёв","ул. Влайку Пыркэлаб, 70, Центральный автовокзал"],r16:["Кишинёв","бул. Дачия, 47, парковка у Malldova"],r17:["Париж","Porte Maillot, парковка у Palais des Congrès"]};
 seedRoutes.forEach(r=>{const m=MEET_OF[r.id];if(m)r.meet={city:m[0],street:m[1],lat:r.from.lat,lon:r.from.lon}});
 
@@ -219,14 +222,24 @@ function privacySheet(){
 function doneSheet(title,text){sheet(`<div class="done"><div class="big" aria-hidden="true">✓</div><h2>${esc(title)}</h2>${text?`<p class="small muted">${esc(text)}</p>`:""}</div><button class="btn" id="dok" type="button">Хорошо</button>`,s=>{s.querySelector("#dok").onclick=closeSheet;s.querySelector("#dok").focus()})}
 function toast(msg){trk("toast",null,msg);const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function when(t){
-  const d=new Date(t),hh=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  const d=new Date(t),hh=d.toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit",hour12:false});
   const day=x=>{const y=new Date(x);y.setHours(0,0,0,0);return y.getTime()};
   const dd=Math.round((day(t)-day(Date.now()))/864e5);
   const M=["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
-  const lbl=dd===0?"сегодня":dd===1?"завтра":dd===2?"послезавтра":d.getDate()+" "+M[d.getMonth()];
+  const date=I18.lang==="ru"?d.getDate()+" "+M[d.getMonth()]:d.toLocaleDateString(LOC,{day:"numeric",month:"short"}).replace(/\.$/,"");
+  const lbl=dd===0?T("сегодня"):dd===1?T("завтра"):dd===2?T("послезавтра"):date;
   const inH=(t-Date.now())/H;
-  return {txt:lbl+", "+hh, rel:inH<1?"скоро":inH<24?"через "+Math.round(inH)+" ч":"через "+Math.round(inH/24)+" дн.", soon:inH<24};
+  return {txt:lbl+", "+hh, rel:inH<1?T("скоро"):inH<24?T("через "+Math.round(inH)+" ч"):T("через "+Math.round(inH/24)+" дн."), soon:inH<24};
 }
+/* Когда опубликовано объявление: «сегодня, 14:05», «вчера, 09:30» или «25 ноя, 18:00» (в часовом поясе человека) */
+function postedTxt(t){
+  if(!Number.isFinite(t))return "";
+  const d=new Date(t),day=x=>{const y=new Date(x);y.setHours(0,0,0,0);return y.getTime()};
+  const dd=Math.round((day(Date.now())-day(t))/864e5),hh=d.toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit",hour12:false});
+  const date=d.toLocaleDateString(LOC,{day:"numeric",month:"short",...(d.getFullYear()!==new Date().getFullYear()?{year:"numeric"}:{})}).replace(/\.$/,"");
+  return T("опубл.")+" "+(dd===0?T("сегодня"):dd===1?T("вчера"):date)+", "+hh;
+}
+const postedFull=t=>Number.isFinite(t)?new Date(t).toLocaleString(LOC,{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}):"";
 function closeSheet(){const s=$(".scrim");if(s)s.remove()}
 function sheet(html,bind){closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;s.onclick=e=>{if(e.target===s)closeSheet()};document.body.appendChild(s);{const h=s.querySelector("h2,b");if(!(state.tab==="admin"&&state.user))trk("sheet",null,h?h.textContent:"Окно")}bind&&bind(s);const f=s.querySelector("button,input");f&&f.focus()}
 
@@ -449,7 +462,7 @@ const pname=id=>{const P=live.people[id];if(!P)return "Пользователь"
 function routeFromRow(x){const d=x.data||{},caps={},prices={};
   Object.keys(KINDS).forEach(k=>{if(x.caps&&x.caps[k]!=null){caps[k]=num(x.caps[k]);prices[k]=num(d.prices&&d.prices[k])}});
   const from=okPt(d.from),to=okPt(d.to),m=d.meet&&typeof d.meet==="object"?d.meet:null;
-  return {id:x.id,owner:x.owner,mine:!!state.user&&x.owner===state.user.id,from,to,at:Date.parse(x.at),caps,prices,driver:clip(d.driver,100)||"Водитель",
+  return {id:x.id,owner:x.owner,mine:!!state.user&&x.owner===state.user.id,from,to,at:Date.parse(x.at),created:Date.parse(x.created_at),caps,prices,driver:clip(d.driver,100)||"Водитель",
     vehicle:clip(d.vehicle,80),note:clip(d.note,300),vt:VT[d.vt]?d.vt:null,carrier:d.carrier==="bus"?"bus":"private",hasPhoto:!!x.has_photo,photo:live.photos[x.id]||null,
     meet:m?{city:clip(m.city,80),street:clip(m.street,120),lat:Number.isFinite(+m.lat)?+m.lat:from.lat,lon:Number.isFinite(+m.lon)?+m.lon:from.lon}:null}}
 function reqFromRow(x){const d=x.data||{};return {id:x.id,owner:x.owner,mine:!!state.user&&x.owner===state.user.id,from:okPt(d.from),to:okPt(d.to),at:Date.parse(x.at),
@@ -479,7 +492,7 @@ async function loadMsgs(){
 async function loadAll(){
   const iso=t=>new Date(t).toISOString();
   const [rs,qs,bs,rv]=await Promise.all([
-    api.get("routes?select=id,owner,at,caps,data,has_photo&at=gte."+iso(Date.now()-2*H)+"&order=at.asc&limit=500"),
+    api.get("routes?select=id,owner,at,caps,data,has_photo,created_at&at=gte."+iso(Date.now()-2*H)+"&order=at.asc&limit=500"),
     api.get("requests?select=id,owner,at,data&at=gte."+iso(Date.now()-24*H)+"&order=at.asc&limit=500"),
     api.get("bookings?select=*&order=created_at.desc&limit=200"),
     api.get("reviews?select=id,booking_id,author_name,target,target_name,stars,body,created_at&order=created_at.desc&limit=1000")]);
@@ -695,12 +708,12 @@ async function roadRoute(r){
     return roadCache[r.id]={geo:j.routes[0].geometry,km:Math.round(j.routes[0].distance/1000),h:j.routes[0].duration/3600}}catch(e){errs.push(e.message)}
   throw new Error(errs.join("; "));
 }
-async function geoRev(lat,lon){const j=await (await fetch(geoUrl("geocode/reverse",{lat,lon,lang:"ru",format:"json"}))).json();return (j.results||[])[0]||{}}
+async function geoRev(lat,lon){const j=await (await fetch(geoUrl("geocode/reverse",{lat,lon,lang:I18.lang,format:"json"}))).json();return (j.results||[])[0]||{}}
 async function revGeo(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon),n=a.city||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}
-  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ru`)).json();
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=${I18.lang}`)).json();
   const a=j.address||{},n=a.city||a.town||a.village||a.municipality||a.county||a.state;return n?n+(a.country?", "+a.country:""):null}catch(e){return null}}
 async function revStreet(lat,lon){if(GEO_KEY)try{const a=await geoRev(lat,lon);return {city:a.city||a.village||"",street:[a.street,a.housenumber].filter(Boolean).join(", ")}}catch(e){return null}
-  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=ru`)).json();
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=${I18.lang}`)).json();
   const a=j.address||{};return {city:a.city||a.town||a.village||"",street:[a.road||a.pedestrian||a.square,a.house_number].filter(Boolean).join(", ")}}catch(e){return null}}
 function setPlace(obj,p,rer){const k=obj.pick||"A";trk("search",{field:k==="A"?"откуда":"куда",city:p&&p.name,where:obj===state?"карта":"я еду"});obj[k]=p;obj.pick=k==="A"&&!obj.B?"B":null;if(obj===state)state.sel=null;rer()}
 function nearestPlace(lat,lon){let best=null,bd=1e9;for(const o of placeIdx()){const d=dist([lat,lon],[o.lat,o.lon]);if(d<bd){bd=d;best=o}}return{o:best,d:bd}}
@@ -744,10 +757,10 @@ function findPlaces(q,max=8){const qn=normTxt(q);if(!qn)return[];const ql=latTxt
   res.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const good=res.filter(x=>x[0]<4);
   return (good.length?good:res).slice(0,max).map(x=>x[2])}
 const placeLabel=o=>o.cc&&CC_RU[o.cc]?CC_RU[o.cc]:o.osm?"OpenStreetMap":"";
-async function osmFind(v,typing){if(GEO_KEY)try{const j=await (await fetch(geoUrl(typing?"geocode/autocomplete":"geocode/search",{text:v,lang:"ru",limit:5,format:"json"}))).json();
+async function osmFind(v,typing){if(GEO_KEY)try{const j=await (await fetch(geoUrl(typing?"geocode/autocomplete":"geocode/search",{text:v,lang:I18.lang,limit:5,format:"json"}))).json();
   return (j.results||[]).map(x=>({name:x.name||x.city||x.address_line1,lat:+x.lat,lon:+x.lon,osm:true,cc:(x.country_code||"").toUpperCase(),sub:[x.city!==x.name&&x.city,x.country].filter(Boolean).join(", ")}))}catch(e){return[]}
   if(typing)return[];
-  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ru&q=${encodeURIComponent(v)}`)).json();
+  try{const j=await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=${I18.lang}&q=${encodeURIComponent(v)}`)).json();
   return j.map(x=>({name:x.display_name.split(",")[0].trim(),lat:+x.lat,lon:+x.lon,osm:true,cc:"",sub:x.display_name.split(",").slice(1,3).join(",").trim()}))}catch(e){return[]}}
 function bindSearch(obj,rer){const f=$("#sq");if(!f)return;const q=$("#q"),box=$("#sugg");let cur=[],tm=0,seq=0;
   const pick=o=>setPlace(obj,{name:o.name,lat:o.lat,lon:o.lon},rer);
@@ -836,7 +849,7 @@ function renderTrip(r){
   const w=when(r.at),mine=r.mine,P=person(r.driver);
   view.innerHTML=`
     <div><button class="btn ghost sm" id="tback" type="button">← Все поездки</button></div>
-    <div class="trip-h"><h1>${esc(r.from.name)} → ${esc(r.to.name)}</h1><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
+    <div class="trip-h"><h1>${esc(r.from.name)} → ${esc(r.to.name)}</h1><div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span>${r.created?`<span class="posted" title="Опубликовано: ${postedFull(r.created)}">${clockI}${postedTxt(r.created)}</span>`:""}</div></div>
     <p class="muted" style="margin:0"><span class="mono">${w.txt}</span> · <span id="tkm">≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км</span></p>
     <div class="mapbox" id="mb">
       <div class="mapbar"><span class="pill" id="troad">Строим маршрут по дорогам…</span></div>
@@ -942,15 +955,16 @@ function newWaitSheet(){
 function delReq(id,then){api.del("requests?id=eq."+id).then(()=>{state.requests=state.requests.filter(q=>q.id!==id);toast("Точка ожидания убрана");then()},liveFail)}
 function openReqChat(id){const q=state.requests.find(x=>x.id===id);let c=state.chats.find(x=>x.req===id&&(!LIVE||x.peer===q.owner));
   if(!c){c={id:LIVE?"|"+id+"|"+q.owner:"c"+Date.now(),req:id,peer:q.owner,with:q.name,title:`Ищет: ${q.from.name} → ${q.to.name}`,msgs:[],unread:0};state.chats.unshift(c);
-    c.draft=`Здравствуйте! Я еду ${q.from.name} → ${q.to.name} ${when(q.at).txt.split(",")[0]}. Могу взять${q.kind==="seat"?" вас":""}. Обсудим цену?`}
+    c.draft=T(`Здравствуйте! Я еду ${q.from.name} → ${q.to.name} ${when(q.at).txt.split(",")[0]}. Могу взять${q.kind==="seat"?" вас":""}. Обсудим цену?`)}
   save();state.openChat=c.id;state.tab="chats";render()}
 function capPills(r){return Object.entries(r.caps).filter(([,v])=>v>0).map(([k,v])=>`<span class="pill"><i class="dot" style="background:var(${KINDS[k].color})"></i>${KINDS[k].t}: ${v} ${KINDS[k].unit} · от ${eur(r.prices[k])} ${KINDS[k].price}</span>`).join("")}
+const clockI=`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
 function offerCard(r){
   const w=when(r.at);const mine=r.mine;
   return `<div class="card offer${state.sel===r.id?" sel":""}" data-id="${r.id}">
     <div class="route-t">${esc(r.from.name)} → ${esc(r.to.name)}</div>
-    <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span></div>
-    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${nameBtn(r.driver)} ${ratingTxt(person(r.driver))} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
+    <div class="side"><span class="when ${w.soon?"soon":""}">${w.rel}</span>${r.created?`<span class="posted" title="Опубликовано: ${postedFull(r.created)}">${clockI}${postedTxt(r.created)}</span>`:""}</div>
+    <div class="meta"><span class="mono">${w.txt}</span> · ≈${roadKm([r.from.lat,r.from.lon],[r.to.lat,r.to.lon])} км<br>${nameBtn(r.driver)} ${ratingTxt(person(r.driver))} · ${esc(r.vehicle)}${r.meet&&r.meet.street?`<br>Отправление: ${esc(r.meet.city)}, ${esc(r.meet.street)}, в ${new Date(r.at).toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit"})}`:""}${r.note?`<br>${esc(r.note)}`:""}</div>
     ${safeImg(r.photo)?`<img class="vphoto" src="${safeImg(r.photo)}" alt="Фото транспорта: ${esc(r.vehicle)}">`:""}
     <div class="caps"><span class="pill ${isBus(r)?"go":""}">${carrierName(r)}</span>${capPills(r)}</div>
     <div class="roadinfo"></div>
@@ -1007,7 +1021,7 @@ function openChatFor(id){const r=state.routes.find(x=>x.id===id);const c=chatFor
     c.draft=k==="parcel"?`Здравствуйте! Хочу передать посылку из ${state.A&&state.A.name.indexOf("Точка")<0?state.A.name:r.from.name} в ${r.to.name}. Примерно 5 кг. Когда и где можно отдать?`
       :k==="drive"?`Здравствуйте! Я купил машину в ${r.from.name}, нужно пригнать её в ${r.to.name}. Машина оплачена, документы готовы. Сколько возьмёте за перегон?`
       :k==="car"?`Здравствуйте! Нужно перевезти машину из ${r.from.name} в ${r.to.name}. Есть место на трале?`
-      :`Здравствуйте! Есть свободное место до ${r.to.name}? Откуда забираете?`}
+      :`Здравствуйте! Есть свободное место до ${r.to.name}? Откуда забираете?`;c.draft=T(c.draft)}
   save();state.openChat=c.id;state.tab="chats";render()}
 const REPLIES={
   parcel:["Добрый день! Да, беру. Привезите сегодня до 16:00, адрес скину. Оплата 1 € за кг, можно при получении.","Посылку заберу. Подпишите имя и телефон получателя на коробке."],
@@ -1028,7 +1042,7 @@ function renderChat(c){
   if(LIVE&&c.unreadIds&&c.unreadIds.length){api.patch("messages?id=in.("+c.unreadIds.join(",")+")",{read_at:new Date().toISOString()}).catch(()=>{});c.unreadIds=[]}
   c.unread=0;save();updateBadge();
   const r=state.routes.find(x=>x.id===c.route);
-  const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  const tm=t=>new Date(t).toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit"});
   view.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><button class="btn ghost sm" id="bk" type="button">← Чаты</button><span class="ava">${esc(c.with[0])}</span><div style="min-width:0"><b>${esc(c.with)}</b><p class="small muted">${esc(c.title)}${r?" · "+when(r.at).txt:""}</p></div></div>
     <div class="chatlog" id="log">${c.msgs.length?c.msgs.map(m=>`<div class="msg ${m.me?"me":""}">${esc(m.text)}<time>${tm(m.t)}</time></div>`).join(""):`<p class="small muted">Напишите водителю: что везёте, откуда забрать, когда удобно. Номер телефона покажем после брони.</p>`}</div>
     ${r&&!r.mine?`<button class="btn ghost sm" id="bkr" type="button" style="align-self:flex-start">Забронировать в этом маршруте</button>`:""}
@@ -1125,7 +1139,7 @@ function renderPublish(){
     const at=new Date($("#pd").value+"T"+$("#pt").value).getTime();
     if(!Number.isFinite(at)||at<Date.now()-H){toast("Проверьте дату и время выезда");$("#pd").focus();return}
     const vt=p.vt==="none"?null:p.vt;const mp=p.M||p.A;const meet={city:clip($("#pcity").value,80)||p.A.name,street:clip($("#pstreet").value,120),lat:mp.lat,lon:mp.lon};
-    const r={id:"m"+Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?(clip($("#pv").value,80)||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:clip($("#pn").value,300),mine:true};
+    const r={id:"m"+Date.now(),created:Date.now(),meet,photo:vt?p.photo||null:null,vt,carrier:vt==="bus"||vt==="minibus"?"bus":"private",from:p.A,to:p.B,at,driver:state.user.ltype==="company"&&state.user.cname?state.user.cname:state.user.name,vehicle:vt?(clip($("#pv").value,80)||VT[vt].t):"Без своей машины",caps,prices,rating:5,note:clip($("#pn").value,300),mine:true};
     if(LIVE){const b=$("#pf button[type=submit]");b.disabled=true;
       api.post("routes",{at:new Date(at).toISOString(),caps,photo:safeImg(r.photo)||null,data:{from:okPt(r.from),to:okPt(r.to),meet,vt,carrier:r.carrier,vehicle:r.vehicle,prices,note:r.note}},true)
         .then(rows=>{live.photos[rows[0].id]=safeImg(r.photo)||null;return loadAll().then(()=>rows[0].id)})
@@ -1263,7 +1277,7 @@ const FAQ=[
 const SUPPORT_Q=["Как найти попутку?","Как отправить посылку?","Что такое перегон?","Что значит оранжевая точка?","Сколько это стоит?"];
 function supportAnswer(v){const f=FAQ.find(([re])=>re.test(v));return f?f[1]:"Спасибо за вопрос! Я передам его оператору, он ответит здесь в течение дня. А пока можно ещё раз посмотреть короткое ознакомление: кнопка «?» вверху экрана."}
 function openSupport(){
-  const tm=t=>new Date(t).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  const tm=t=>new Date(t).toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit"});
   const draw=s=>{
     s.querySelector(".sheet").innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span class="ava">?</span><div><b>Поддержка gotransfer</b><p class="small muted">Спросите, как пользоваться приложением</p></div></div>
       <div class="chatlog" style="min-height:160px"><div class="msg">Здравствуйте! Я помогу разобраться с приложением. Выберите вопрос или напишите свой.</div>
@@ -1311,7 +1325,7 @@ function socialBtns(P){
   return one(P.ig,"Instagram","instagram.com")+one(P.fb,"Facebook","facebook.com");
 }
 function personSheet(name){
-  const P=person(name),tm=t=>new Date(t).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
+  const P=person(name),tm=t=>new Date(t).toLocaleDateString(LOC,{day:"numeric",month:"short",year:"numeric"});
   const row=(ok,t)=>`<span><b class="${ok?"y":"n"}">${ok?"✓":"–"}</b>${t}</span>`;
   const soc=socialBtns(P);
   sheet(`<div style="display:flex;gap:12px;align-items:center"><span class="ava big">${safeImg(P.photo)?`<img src="${safeImg(P.photo)}" alt="">`:esc(name[0])}</span>
@@ -1415,7 +1429,7 @@ const admApi={
     :Promise.resolve(admLocal().filter(e=>!before||e.at<before).reverse().slice(0,200)),
   retention:m=>LIVE?api.rpc("admin_set_retention",{p_months:m}):(store.set("trkret",m),Promise.resolve())
 };
-const fmtDT=t=>t?new Date(t).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+const fmtDT=t=>t?new Date(t).toLocaleString(LOC,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
 function evText(e){const p=e.p&&typeof e.p==="object"?e.p:{};
   if(e.n==="screen")return scrName(e.s);
   if(e.n==="consent"||e.n==="message_sent"||e.n==="logout"||e.n==="support_ask"||e.n==="share")return "";
@@ -1458,7 +1472,7 @@ function renderAdmin(){
       <div class="card"><h2>Какие экраны открывают</h2>${admTop(o.screens,scrName)}</div>
       <div class="card"><h2>Куда чаще нажимают</h2>${admTop(o.clicks,x=>x)}</div>
     </div>
-    <div class="card"><h2>По дням</h2>${(o.days||[]).length?`<div class="kv small muted"><span>День</span><span>действий · людей</span></div>`+(o.days||[]).map(x=>`<div class="kv"><span>${esc(new Date(x.d).toLocaleDateString("ru-RU",{weekday:"short",day:"2-digit",month:"2-digit"}))}</span><b>${n(x.n)} · ${n(x.u)}</b></div>`).join(""):`<p class="small muted">Пока пусто.</p>`}</div>`}
+    <div class="card"><h2>По дням</h2>${(o.days||[]).length?`<div class="kv small muted"><span>День</span><span>действий · людей</span></div>`+(o.days||[]).map(x=>`<div class="kv"><span>${esc(new Date(x.d).toLocaleDateString(LOC,{weekday:"short",day:"2-digit",month:"2-digit"}))}</span><b>${n(x.n)} · ${n(x.u)}</b></div>`).join(""):`<p class="small muted">Пока пусто.</p>`}</div>`}
     <div class="card"><h2>Люди</h2>
       <form class="searchrow" id="adq"><input id="adqi" type="search" autocomplete="off" placeholder="Имя, компания или почта" value="${esc(ADM.q)}" aria-label="Найти человека"><button class="btn sm" type="submit">Найти</button></form>
       <div class="list">${ADM.users==null?`<p class="small muted" role="status">Загружаем…</p>`:ADM.users.length?ADM.users.map((u,i)=>`<button class="card admuser" type="button" data-u="${i}"><span class="ava">${esc((u.name||"?")[0]||"?")}</span><span class="t"><b>${esc(u.name||"Без имени")}</b> <span class="small muted">${esc(u.email||"")}</span><p class="small muted">Последний раз: ${fmtDT(u.last_at)} · действий за 30 дней: ${n(u.n30)}</p></span></button>`).join(""):`<p class="small muted">Никого не нашли.</p>`}</div>
@@ -1476,10 +1490,10 @@ function renderAdmin(){
 }
 function renderAdminUser(){
   const u=ADM.user,ev=ADM.ev||[];let day="",sid="",rows="";
-  for(const e of ev){const d=new Date(e.at),dk=d.toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  for(const e of ev){const d=new Date(e.at),dk=d.toLocaleDateString(LOC,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
     if(dk!==day){day=dk;sid="";rows+=`<h3 class="admday">${esc(dk[0].toUpperCase()+dk.slice(1))}</h3>`}
     if(e.sid&&e.sid!==sid){sid=e.sid;rows+=`<p class="small muted admsess">Заход с устройства: ${esc(DEVN[e.dev]||e.dev||"—")}</p>`}
-    rows+=`<div class="admev"><time class="mono small">${d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</time><span><b>${esc(EVN[e.n]||e.n)}</b> ${esc(evText(e))}${e.n!=="screen"&&e.s?`<br><span class="small muted">на экране «${esc(scrName(e.s))}»</span>`:""}</span></div>`}
+    rows+=`<div class="admev"><time class="mono small">${d.toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</time><span><b>${esc(EVN[e.n]||e.n)}</b> ${esc(evText(e))}${e.n!=="screen"&&e.s?`<br><span class="small muted">на экране «${esc(scrName(e.s))}»</span>`:""}</span></div>`}
   view.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="adub" type="button">← Все люди</button><h1 style="margin:0">${esc(u.name||"Без имени")}</h1></div>
     <div class="card"><div class="kv"><span>Почта</span><b>${esc(u.email||"—")}</b></div><div class="kv"><span>Регистрация</span><b>${fmtDT(u.created_at)}</b></div>
       <div class="kv"><span>Последнее действие</span><b>${fmtDT(u.last_at)}</b></div><div class="kv"><span>Действий за 30 дней</span><b>${Number(u.n30)||0}</b></div></div>

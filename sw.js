@@ -12,6 +12,7 @@ const APP_FILES = [
   "euroads.js",
   "eucities.js",
   "config.js",
+  "i18n.js",
   "app.js",
   "pwa.js",
   "manifest.webmanifest",
