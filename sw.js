@@ -1,7 +1,7 @@
 /* Офлайн-режим go-transfer-go.
    Файлы приложения хранятся в кэше телефона, поэтому оно открывается и без интернета.
    После изменения index.html или других файлов увеличьте VERSION, чтобы у людей скачалась новая версия. */
-const VERSION = "v19";
+const VERSION = "v20";
 const APP = "gtg-app-" + VERSION;
 const LIBS = "gtg-libs-" + VERSION;
 
@@ -12,6 +12,7 @@ const APP_FILES = [
   "euroads.js",
   "eucities.js",
   "config.js",
+  "i18n.js",
   "app.js",
   "pwa.js",
   "manifest.webmanifest",
